@@ -9,6 +9,7 @@ const {
   safeStorage,
   nativeImage,
   session,
+  screen,
 } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -21,20 +22,39 @@ const DEFAULT_URL = "https://rootwatch.dev";
 const CONFIG_PATH = path.join(app.getPath("userData"), "connection.json");
 const POLL_MS = 60_000;
 
-// Wayland + Vulkan on some drivers (GNOME/NVIDIA) renders the window
-// invisible — the page loads but no surface appears ("--ozone-platform=
-// wayland is not compatible with Vulkan"). Fall back to X11/XWayland unless
-// the user already picked a platform explicitly.
+// Both directions of this bug exist in the wild: Wayland+Vulkan on some
+// drivers (GNOME/NVIDIA) renders an invisible window ("--ozone-platform=
+// wayland is not compatible with Vulkan"), while the forced-X11 fallback
+// produces the same invisible window on other stacks. Let Chromium pick
+// the session's native platform ("auto" → wayland on wayland); force the
+// X11/software path only via ROOTWATCH_X11=1 or an explicit flag.
 if (
   process.platform === "linux" &&
-  process.env.XDG_SESSION_TYPE === "wayland" &&
   !process.env.ELECTRON_OZONE_PLATFORM_HINT &&
   !process.argv.some((a) => a.startsWith("--ozone-platform"))
 ) {
-  app.commandLine.appendSwitch("ozone-platform", "x11");
-  // Same driver stacks also segfault the GPU process under XWayland
-  // (exit 139 → crash loop) — go straight to software rendering.
-  app.disableHardwareAcceleration();
+  if (process.env.ROOTWATCH_X11 === "1") {
+    app.commandLine.appendSwitch("ozone-platform", "x11");
+    // XWayland + some driver stacks segfault the GPU process (exit 139 →
+    // crash loop) — go straight to software rendering.
+    app.disableHardwareAcceleration();
+  } else {
+    app.commandLine.appendSwitch("ozone-platform-hint", "auto");
+  }
+}
+
+const LOG_PATH = path.join(app.getPath("userData"), "device.log");
+/** Rolling one-file log (~256 KiB) — the only diagnostics support can ask for. */
+function log(...args) {
+  const line = `${new Date().toISOString()} ${args.join(" ")}`;
+  console.log(line);
+  try {
+    const st = fs.existsSync(LOG_PATH) ? fs.statSync(LOG_PATH) : null;
+    if (st && st.size > 256 * 1024) fs.truncateSync(LOG_PATH);
+    fs.appendFileSync(LOG_PATH, line + "\n");
+  } catch {
+    /* logging must never crash the app */
+  }
 }
 
 let mainWindow = null;
@@ -182,8 +202,10 @@ function createWindow() {
   });
 
   if (config?.url) {
+    log(`window → ${new URL(config.url).origin}`);
     mainWindow.loadURL(config.url);
   } else {
+    log("window → connect screen (no instance configured)");
     mainWindow.loadFile(path.join(__dirname, "connect.html"));
   }
 }
@@ -341,7 +363,21 @@ async function listenerDrift() {
 
 function showWindow() {
   if (mainWindow) {
+    // A window mapped fully offscreen (dead display/workspace) stays
+    // invisible on plain show() — recenter it before raising.
+    const wb = mainWindow.getBounds();
+    const wa = screen.getDisplayMatching(wb).workArea;
+    if (
+      wb.x + wb.width < wa.x ||
+      wb.y + wb.height < wa.y ||
+      wb.x > wa.x + wa.width ||
+      wb.y > wa.y + wa.height
+    ) {
+      log(`window offscreen (${wb.x},${wb.y} ${wb.width}x${wb.height}) — recentering`);
+      mainWindow.center();
+    }
     mainWindow.show();
+    mainWindow.moveTop();
     mainWindow.focus();
   } else {
     createWindow();
@@ -385,7 +421,10 @@ function buildAppMenu() {
   );
 }
 
-const wantsDevicePage = (argv) => argv.includes("--device");
+// Packaged Electron rejects unknown "--" flags before app code sees argv
+// ("bad option: --device") — the positional form works in both dev and
+// packaged builds. Accept both.
+const wantsDevicePage = (argv) => argv.slice(1).some((a) => a === "device" || a === "--device");
 
 function showDevicePage() {
   showWindow();
@@ -396,6 +435,7 @@ function showDevicePage() {
 function syncReporter() {
   if (config?.url && config?.deviceToken) {
     device.startReporter({ url: config.url, token: config.deviceToken });
+    log(`reporter → ${config.url}`);
   } else {
     device.stopReporter();
   }
@@ -628,6 +668,10 @@ if (!gotLock) {
 
   app.whenReady().then(() => {
     app.setAppUserModelId("dev.rootwatch.RootWatch");
+    log(
+      `start v${app.getVersion()} session=${process.env.XDG_SESSION_TYPE ?? "?"} ` +
+        `ozone=${process.env.ELECTRON_OZONE_PLATFORM_HINT ?? (process.env.ROOTWATCH_X11 === "1" ? "x11" : "auto")}`,
+    );
 
     // Default-deny all permission requests from the loaded page.
     session.defaultSession.setPermissionRequestHandler((_wc, _perm, callback) => callback(false));

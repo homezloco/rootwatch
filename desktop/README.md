@@ -35,7 +35,7 @@ Express server or a database.
 ### This device (local sensor)
 
 Reachable via tray → _This device…_, the app menu (Alt → RootWatch →
-_This device…_), `rootwatch --device`, or the launcher "This device"
+_This device…_), `rootwatch device`, or the launcher "This device"
 desktop action — no tray icon required.
 
 - **Listener inventory** — every TCP/UDP LISTEN socket grouped by pid,
