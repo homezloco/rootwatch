@@ -6,7 +6,11 @@ org-scoped Bearer tokens (`rw_…`).
 
 ## Install
 
-`@rootwatch/cli` is **not yet published** to npm — build from source:
+```bash
+npm install -g @rootwatch/cli   # or: npx @rootwatch/cli …
+```
+
+From source:
 
 ```bash
 cd cli && npm install && npm run build
@@ -14,8 +18,6 @@ cd cli && npm install && npm run build
 # or link the binary onto your PATH:
 npm link
 ```
-
-Once published: `npm install -g @rootwatch/cli` (or `npx @rootwatch/cli …`).
 
 ## Connect
 
