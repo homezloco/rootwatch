@@ -57,7 +57,8 @@ Global flags: `--json` (machine output), `--profile <name>`.
 ## Local project scanning
 
 `rootwatch scan .` audits the current project and reports findings into your
-org's dashboard (requires the `write` scope):
+org's dashboard (requires the `write` scope). `rootwatch scan --no-upload`
+runs entirely offline — no login required and nothing leaves the machine.
 
 - **Secrets** — AWS keys, GitHub PATs, OpenAI-style keys, private key
   blocks, generic credential assignments. Only file:line + rule id are

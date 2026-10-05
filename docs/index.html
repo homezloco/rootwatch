@@ -463,15 +463,16 @@
         <div class="card">
           <h3><span class="n">CLI</span> rootwatch / rw</h3>
           <p>
-            Secrets, dependency and hygiene scans on any repo or host. Results land in the
-            dashboard.
+            Secrets, dependency and hygiene scans on any repo or host. Findings report file:line +
+            rule ID — the secret value never leaves your machine. Works account-free with
+            <code>--no-upload</code>.
           </p>
           <pre class="code"><span class="k">npm</span> i -g @rootwatch/cli
+<span class="k">rootwatch</span> scan . --no-upload <span class="c"># fully local — nothing leaves</span>
 <span class="k">rootwatch</span> login --server <span class="s">https://app.rootwatch.dev</span> \
           --token <span class="s">rw_…</span>
-<span class="k">rootwatch</span> scan <span class="c"># secrets · deps · hygiene</span>
-<span class="k">rootwatch</span> scan --deps</pre>
-          <span class="pill">npm · build from source: cli/</span>
+<span class="k">rootwatch</span> scan <span class="c"># secrets · deps · hygiene → dashboard</span></pre>
+          <span class="pill">npm · Apache-2.0 · source: cli/</span>
         </div>
 
         <div class="card" id="mcp">

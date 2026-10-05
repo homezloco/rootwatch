@@ -7,18 +7,8 @@
 import type { Command } from "commander";
 import chalk from "chalk";
 import { CliError, requireAuth, type GlobalOpts } from "../client.js";
-import {
-  printJson,
-  printKv,
-  printTable,
-  severityLabel,
-  success,
-} from "../output.js";
-import {
-  findingsPayload,
-  scanLocalProject,
-  type Finding,
-} from "../scan/index.js";
+import { printJson, printKv, printTable, severityLabel, success } from "../output.js";
+import { findingsPayload, scanLocalProject, type Finding } from "../scan/index.js";
 import { isValidSeverity, severityAtLeast, truncate } from "../util.js";
 
 const SEVERITIES: Finding["severity"][] = ["Critical", "High", "Medium", "Low"];
@@ -26,10 +16,10 @@ const SEVERITIES: Finding["severity"][] = ["Critical", "High", "Medium", "Low"];
 function checkThreshold(failOn: string | undefined): string | undefined {
   if (!failOn) return undefined;
   if (!isValidSeverity(failOn)) {
-    throw new CliError(
-      `--fail-on must be one of: low, medium, high, critical (got '${failOn}')`,
-      { code: "usage", exitCode: 2 },
-    );
+    throw new CliError(`--fail-on must be one of: low, medium, high, critical (got '${failOn}')`, {
+      code: "usage",
+      exitCode: 2,
+    });
   }
   return failOn;
 }
@@ -52,16 +42,15 @@ function failOnOption(opts: { failOn?: string }, cmd: Command): string | undefin
 
 async function runLocalScan(
   path: string | undefined,
-  opts: { failOn?: string },
+  opts: { failOn?: string; upload?: boolean },
   globals: GlobalOpts,
   cmd: Command,
 ): Promise<void> {
   const failOn = checkThreshold(failOnOption(opts, cmd));
-  const { client } = requireAuth(globals);
+  const upload = opts.upload !== false;
+  const client = upload ? requireAuth(globals).client : null;
 
-  const { project, findings, scannedFiles } = await scanLocalProject(
-    path ?? ".",
-  );
+  const { project, findings, scannedFiles } = await scanLocalProject(path ?? ".");
 
   const counts = severityCounts(findings);
   const payload = findingsPayload(project, findings);
@@ -74,27 +63,38 @@ async function runLocalScan(
     );
   }
 
-  // Post findings to the org (write scope). The local report is still
-  // printed even when the upload fails.
+  // Post findings to the org (write scope) unless --no-upload. The local
+  // report is still printed even when the upload fails.
   let posted: unknown = null;
   let postError: CliError | null = null;
-  try {
-    const res = await client.post("/findings", payload);
-    posted = res.data;
-  } catch (e) {
-    postError = e instanceof CliError ? e : new CliError(String(e));
+  if (client) {
+    try {
+      const res = await client.post("/findings", payload);
+      posted = res.data;
+    } catch (e) {
+      postError = e instanceof CliError ? e : new CliError(String(e));
+    }
   }
 
   if (globals.json) {
-    printJson({ project, counts, findings, posted, uploadError: postError?.message ?? null });
+    printJson({
+      project,
+      counts,
+      findings,
+      upload: client ? (postError ? "failed" : "ok") : "skipped",
+      posted,
+      uploadError: postError?.message ?? null,
+    });
   } else {
     if (findings.length) {
-      const rows = findings.slice(0, 50).map((f) => [
-        severityLabel(f.severity),
-        f.ruleId,
-        f.file ? `${f.file}${f.line ? `:${f.line}` : ""}` : "-",
-        truncate(f.title, 60),
-      ]);
+      const rows = findings
+        .slice(0, 50)
+        .map((f) => [
+          severityLabel(f.severity),
+          f.ruleId,
+          f.file ? `${f.file}${f.line ? `:${f.line}` : ""}` : "-",
+          truncate(f.title, 60),
+        ]);
       printTable(["Severity", "Rule", "Location", "Finding"], rows);
       if (findings.length > 50) {
         console.log(`… and ${findings.length - 50} more`);
@@ -107,7 +107,9 @@ async function runLocalScan(
         ["Total", String(findings.length)],
       ]),
     );
-    if (postError) {
+    if (!client) {
+      success("✓ local scan — nothing uploaded");
+    } else if (postError) {
       console.log(chalk.yellow(`findings upload failed: ${postError.message}`));
     } else {
       success(`✓ reported ${findings.length} finding(s) to ${client.baseUrl}`);
@@ -160,11 +162,7 @@ async function runRemoteScan(
     const results = Array.isArray((data as any)?.results)
       ? ((data as any).results as { passed?: boolean; severity?: string }[])
       : [];
-    if (
-      results.some(
-        (r) => r.passed === false && severityAtLeast(r.severity ?? "", failOn),
-      )
-    ) {
+    if (results.some((r) => r.passed === false && severityAtLeast(r.severity ?? "", failOn))) {
       throw new CliError(`remote scan has failures ≥ '${failOn}' severity`, {
         code: "threshold_exceeded",
       });
@@ -177,17 +175,31 @@ export function registerScan(program: Command): void {
     .command("scan [path]")
     .description("Scan a local project (default) — see 'scan remote' for host checks")
     .option("--fail-on <severity>", "exit 1 when findings ≥ severity")
-    .action(async (path: string | undefined, opts: { failOn?: string }, cmd: Command) => {
-      await runLocalScan(path, opts, cmd.optsWithGlobals() as GlobalOpts, cmd);
-    });
+    .option("--no-upload", "scan only — no login required, findings never leave this machine")
+    .action(
+      async (
+        path: string | undefined,
+        opts: { failOn?: string; upload?: boolean },
+        cmd: Command,
+      ) => {
+        await runLocalScan(path, opts, cmd.optsWithGlobals() as GlobalOpts, cmd);
+      },
+    );
 
   scan
     .command("local [path]")
     .description("Scan a local project directory and post findings")
     .option("--fail-on <severity>", "exit 1 when findings ≥ severity")
-    .action(async (path: string | undefined, opts: { failOn?: string }, cmd: Command) => {
-      await runLocalScan(path, opts, cmd.optsWithGlobals() as GlobalOpts, cmd);
-    });
+    .option("--no-upload", "scan only — no login required, findings never leave this machine")
+    .action(
+      async (
+        path: string | undefined,
+        opts: { failOn?: string; upload?: boolean },
+        cmd: Command,
+      ) => {
+        await runLocalScan(path, opts, cmd.optsWithGlobals() as GlobalOpts, cmd);
+      },
+    );
 
   scan
     .command("remote")
