@@ -1,0 +1,223 @@
+#!/bin/bash
+# rootwatch-remediate — RootWatch privileged remediation helper.
+#
+# Installed root:root mode 0750 at /opt/rootwatch/libexec/rootwatch-remediate.
+# The RootWatch service user may run ONLY this script, via:
+#   rootwatch ALL=(root) NOPASSWD: /opt/rootwatch/libexec/rootwatch-remediate
+#
+# Interface:
+#   rootwatch-remediate --step <base64-json>
+#   where the JSON decodes to {"label": string, "argv": [string, ...]}
+#
+# Defense in depth: the app validates the plan before sending it, and this
+# script re-validates everything on the privileged side — binary allowlist,
+# per-binary flag allowlist, verb allowlist, strict arg charset, no shell
+# metacharacters. Nothing here ever passes through a shell string; the final
+# action is `exec "${ARGV[@]}"` (execFile semantics).
+set -euo pipefail
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+readonly LIBEXEC_DIR="/opt/rootwatch/libexec"
+# NB: in bash =~ (POSIX ERE) a literal '-' must sit at the END of a bracket
+# expression — '\-' is undefined behaviour and mis-matches on glibc regcomp.
+readonly NAME_RE='^[a-zA-Z0-9_@.:+-]+$'
+readonly PATH_RE='^[a-zA-Z0-9_@.:/+=-]+$'
+
+refuse() {
+  echo "rootwatch-remediate: refusing: $*" >&2
+  exit 2
+}
+
+usage() {
+  echo "usage: rootwatch-remediate --step <base64-json>" >&2
+  exit 2
+}
+
+[[ $EUID -eq 0 ]] || refuse "must run as root (invoke via sudo)"
+[[ $# -eq 2 && "$1" == "--step" ]] || usage
+STEP_B64="$2"
+
+# ── Decode {label, argv} ──────────────────────────────────────────────────
+# The decoder emits each field base64-encoded (one per line) so decoded
+# content is never re-parsed by the shell. Fields are individually decoded
+# below with `base64 -d`.
+if command -v python3 >/dev/null 2>&1; then
+  DECODED="$(python3 - "$STEP_B64" <<'PY'
+import base64, json, sys
+try:
+    step = json.loads(base64.b64decode(sys.argv[1]).decode("utf-8"))
+    label, argv = step["label"], step["argv"]
+    assert isinstance(label, str) and label
+    assert isinstance(argv, list) and argv
+    assert all(isinstance(a, str) and a for a in argv)
+    print(base64.b64encode(label.encode()).decode())
+    for a in argv:
+        print(base64.b64encode(a.encode()).decode())
+except Exception as exc:
+    print(f"bad step payload: {exc}", file=sys.stderr)
+    sys.exit(1)
+PY
+)" || refuse "step payload could not be decoded"
+elif command -v jq >/dev/null 2>&1; then
+  DECODED="$(jq -rn --arg b64 "$STEP_B64" '
+    ($b64 | @base64d | fromjson) as $s
+    | if (($s.label | type) != "string" or $s.label == ""
+          or ($s.argv | type) != "array" or ($s.argv | length) == 0
+          or ([$s.argv[] | (type == "string" and . != "")] | all | not))
+      then error("bad step payload")
+      else ([$s.label] + $s.argv)[] | @base64
+      end
+  ')" || refuse "step payload could not be decoded"
+else
+  refuse "need python3 or jq to decode step payloads"
+fi
+
+mapfile -t FIELDS <<< "$DECODED"
+[[ ${#FIELDS[@]} -ge 2 ]] || refuse "step payload missing fields"
+
+LABEL="$(printf '%s' "${FIELDS[0]}" | base64 -d)"
+ARGV=()
+for f in "${FIELDS[@]:1}"; do
+  ARGV+=("$(printf '%s' "$f" | base64 -d)")
+done
+BIN="${ARGV[0]}"
+
+# ── Validate ──────────────────────────────────────────────────────────────
+# 1. Binary allowlist (same set the app enforces).
+case "$BIN" in
+  apt-get|dnf|ufw|systemctl|sshd|dpkg|bash|kill) ;;
+  *) refuse "binary not allowed: $BIN" ;;
+esac
+
+seen_verb=""
+prev=""
+i=0
+for a in "${ARGV[@]:1}"; do
+  i=$((i + 1))
+
+  # 2. Metacharacter screen — applied to every argument.
+  case "$a" in
+    *\;*|*\&*|*\|*|*\`*|*\$*|*\>*|*\<*|*\(*|*\)*|*\{*|*\}*|*$'\n'*|*$'\r'*|*$'\t'*|*" "*)
+      refuse "forbidden character in arg: $a" ;;
+  esac
+
+  # bash may only run helper scripts under our own root-owned libexec dir.
+  if [[ "$BIN" == "bash" && "$i" -eq 1 ]]; then
+    case "$a" in
+      "$LIBEXEC_DIR"/*) ;;
+      *) refuse "bash target outside $LIBEXEC_DIR: $a" ;;
+    esac
+    [[ "$a" != *..* ]] || refuse "path traversal in bash target: $a"
+    [[ "${a#"$LIBEXEC_DIR"/}" =~ ^[a-zA-Z0-9_.-]+$ ]] || refuse "bad helper name: $a"
+    prev="$a"
+    continue
+  fi
+
+  # sshd -f may only point at files under /etc/ssh/.
+  if [[ "$BIN" == "sshd" && "$prev" == "-f" ]]; then
+    case "$a" in
+      /etc/ssh/*) ;;
+      *) refuse "sshd -f target outside /etc/ssh: $a" ;;
+    esac
+    [[ "$a" != *..* ]] || refuse "path traversal in sshd -f target: $a"
+    [[ "$a" =~ $PATH_RE ]] || refuse "unsafe path characters: $a"
+    prev="$a"
+    continue
+  fi
+
+  # 3. Any option must be an exact member of the per-binary flag allowlist —
+  #    this blocks option smuggling such as `apt-get -o APT::...=cmd`.
+  if [[ "$a" == -* ]]; then
+    case "$BIN:$a" in
+      "apt-get:-y"|"apt-get:--yes"|"apt-get:-q"|"apt-get:--quiet"|"apt-get:--no-install-recommends") ;;
+      "dnf:-y"|"dnf:-q"|"dnf:--quiet"|"dnf:--refresh") ;;
+      "systemctl:--now"|"systemctl:--system"|"systemctl:--no-reload"|"systemctl:--no-ask-password"|"systemctl:-q"|"systemctl:--quiet") ;;
+      "ufw:--force"|"ufw:--dry-run") ;;
+      "sshd:-t"|"sshd:-T"|"sshd:-f"|"sshd:-q") ;;
+      "dpkg:-P"|"dpkg:--purge"|"dpkg:-r"|"dpkg:--remove"|"dpkg:--configure"|"dpkg:-l"|"dpkg:--list"|"dpkg:-s"|"dpkg:--status"|"dpkg:--get-selections"|"dpkg:-V"|"dpkg:--verify"|"dpkg:--audit"|"dpkg:-C") ;;
+      "kill:-TERM"|"kill:-KILL"|"kill:-15"|"kill:-9") ;;
+      *) refuse "option not allowed for $BIN: $a" ;;
+    esac
+    prev="$a"
+    continue
+  fi
+
+  # 4. Positional args — record the first (verb check below); the strict
+  #    charset covers unit names, package names, ports and values.
+  [[ -z "$seen_verb" ]] && seen_verb="$a"
+  case "$a" in
+    update|upgrade|dist-upgrade|install|remove|purge|autoremove \
+    |allow|deny|reject|limit|delete|default|enable|disable|reload|reset|status|verbose|numbered \
+    |stop|mask|unmask|start|restart|try-restart|reload-or-restart|try-reload-or-restart|daemon-reload|is-active|is-enabled \
+    |incoming|outgoing|routed)
+      ;; # recognised verb/modifier keyword
+    *)
+      [[ "$a" =~ $NAME_RE ]] || refuse "unsafe arg characters: $a" ;;
+  esac
+  prev="$a"
+done
+
+# 5. Per-binary minimum requirements.
+case "$BIN" in
+  apt-get)
+    case "$seen_verb" in
+      update|upgrade|dist-upgrade|install|remove|purge|autoremove) ;;
+      *) refuse "apt-get verb not allowed: ${seen_verb:-<none>}" ;;
+    esac ;;
+  dnf)
+    # Same strictness as apt-get — only the verbs the catalog emits.
+    case "$seen_verb" in
+      upgrade|install|remove|autoremove) ;;
+      *) refuse "dnf verb not allowed: ${seen_verb:-<none>}" ;;
+    esac ;;
+  ufw)
+    case "$seen_verb" in
+      allow|deny|reject|limit|delete|default|enable|disable|reload|reset|status) ;;
+      *) refuse "ufw verb not allowed: ${seen_verb:-<none>}" ;;
+    esac ;;
+  systemctl)
+    case "$seen_verb" in
+      stop|disable|mask|unmask|enable|start|reload|restart|try-restart|reload-or-restart|try-reload-or-restart|daemon-reload|is-active|is-enabled) ;;
+      *) refuse "systemctl verb not allowed: ${seen_verb:-<none>}" ;;
+    esac
+    # user@<uid>.service is a login session's systemd --user MANAGER —
+    # mutating it on the system bus tears down the user's entire session.
+    # Only the read-only verbs may reference it.
+    case "$seen_verb" in
+      is-active|is-enabled) ;;
+      *)
+        for a in "${ARGV[@]:1}"; do
+          [[ "$a" =~ ^user@[0-9]+\.service$ ]] \
+            && refuse "refusing to manage session manager unit via systemctl: $a"
+        done ;;
+    esac ;;
+  sshd)
+    # Only config validation is permitted — never run the daemon itself.
+    [[ " ${ARGV[*]:1} " == *" -t "* || " ${ARGV[*]:1} " == *" -T "* ]] \
+      || refuse "sshd may only validate config (-t/-T)"
+    [[ "${ARGV[$((${#ARGV[@]} - 1))]}" != "-f" ]] || refuse "sshd -f requires a path argument" ;;
+  dpkg)
+    case "${ARGV[1]:-}" in
+      -P|--purge|-r|--remove|--configure|-l|--list|-s|--status|--get-selections|-V|--verify|--audit|-C) ;;
+      *) refuse "dpkg action not allowed: ${ARGV[1]:-<none>}" ;;
+    esac ;;
+  bash)
+    [[ ${#ARGV[@]} -ge 2 ]] || refuse "bash step must name a helper under $LIBEXEC_DIR"
+    [[ -x "${ARGV[1]}" ]] || refuse "helper not executable: ${ARGV[1]:-}" ;;
+  kill)
+    # kill [-SIGNAL] <pid> — one numeric target; never init (1) or the
+    # process-group wildcard (0). The app re-verifies pid↔listener
+    # ownership before submitting the plan.
+    [[ ${#ARGV[@]} -ge 2 && ${#ARGV[@]} -le 3 ]] || refuse "kill expects [-signal] <pid>"
+    LAST="${ARGV[$((${#ARGV[@]} - 1))]}"
+    [[ "$LAST" =~ ^[0-9]+$ ]] || refuse "kill target must be a numeric pid: $LAST"
+    [[ "$LAST" != "0" && "$LAST" != "1" ]] || refuse "refusing to signal init/process-group" ;;
+esac
+
+# ── Execute ───────────────────────────────────────────────────────────────
+# Audit trail: the argv is echoed on stderr, which the app captures into
+# remediation_actions.result.
+echo "rootwatch-remediate: running step '${LABEL}': ${ARGV[*]}" >&2
+exec "${ARGV[@]}"

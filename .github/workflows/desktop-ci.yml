@@ -1,0 +1,61 @@
+name: desktop-ci
+
+# Split out of ci.yml so the electron-builder `dist:dir` run (the most
+# expensive job in the pipeline) only pays for itself when the desktop app,
+# its deps, or this workflow actually changed. desktop/*.cjs requires only
+# local modules + node builtins + electron — no shared/server imports — so
+# app code changes can't break this build.
+#
+# paths (must stay in sync between push and pull_request):
+#   desktop/**                  — the app itself, incl. electron-builder.yml
+#   package.json + lock         — workspace/deps resolution for `npm ci`
+#   this file                   — workflow edits still get exercised
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "desktop/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/desktop-ci.yml"
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/desktop-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: desktop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install desktop deps
+        # --prefix keeps this working in the public mirror repo, which has
+        # no root package.json/lockfile (npm ci + workspaces live only in
+        # the private trunk).
+        run: npm --prefix desktop install
+      - name: Syntax-check desktop sources
+        run: for f in desktop/*.cjs; do node --check "$f"; done
+      - name: Desktop tests (node:test)
+        run: npm --prefix desktop test
+      - name: Unpacked electron-builder build
+        run: npm --prefix desktop run dist:dir
+      # Catches the "module missing from asar" class of packaging bug —
+      # the runtime .cjs modules must be inside app.asar.
+      - name: Assert asar contains runtime modules
+        run: |
+          npx --yes asar list release/linux-unpacked/resources/app.asar | tee /tmp/asar-list.txt
+          for f in collector.cjs persistence.cjs checks.cjs scan.cjs device.cjs; do
+            grep -q "/$f\$" /tmp/asar-list.txt || { echo "MISSING: $f not in app.asar"; exit 1; }
+          done

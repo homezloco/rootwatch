@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RootWatch — dev security control panel</title>
+    <meta
+      name="description"
+      content="RootWatch: host security control panel for developers. Vulnerability scanning, network discovery, threat intel, MCP server, CLI, and API."
+    />
+    <link rel="canonical" href="https://rootwatch.dev/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="RootWatch" />
+    <meta property="og:title" content="RootWatch — dev security control panel" />
+    <meta
+      property="og:description"
+      content="Host security control panel for developers: listening-port exposure with usage evidence, vulnerability scanning, remediation, performance reclaim — via web, API, MCP, CLI, and desktop app."
+    />
+    <meta property="og:url" content="https://rootwatch.dev/" />
+    <meta property="og:image" content="https://rootwatch.dev/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="RootWatch — dev security control panel" />
+    <meta
+      name="twitter:description"
+      content="Host security control panel for developers: port exposure + usage evidence, vuln scanning, remediation, performance reclaim — web, API, MCP, CLI, desktop."
+    />
+    <meta name="twitter:image" content="https://rootwatch.dev/og.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "name": "RootWatch",
+            "applicationCategory": "SecurityApplication",
+            "operatingSystem": "Linux, macOS, Windows (desktop); any host via agent",
+            "url": "https://rootwatch.dev/",
+            "description": "Host security control panel for developers: listening-port exposure with usage evidence, vulnerability scanning, approval-gated remediation, network discovery, threat intel, compliance reports, and performance reclaim. Surfaces: web dashboard, REST API, MCP server, CLI, Electron desktop app.",
+            "offers": [
+              {
+                "@type": "Offer",
+                "name": "Free",
+                "price": "0",
+                "priceCurrency": "USD",
+                "description": "1 host, community features"
+              },
+              {
+                "@type": "Offer",
+                "name": "Pro",
+                "price": "20",
+                "priceCurrency": "USD",
+                "description": "More hosts, longer retention, hosted AI analysis"
+              },
+              {
+                "@type": "Offer",
+                "name": "Enterprise",
+                "price": "249",
+                "priceCurrency": "USD",
+                "description": "Unlimited seats and tokens, priority support"
+              }
+            ],
+            "creator": {
+              "@type": "Organization",
+              "name": "Canadian Web Consulting",
+              "url": "https://www.canweb.net"
+            }
+          },
+          {
+            "@type": "Organization",
+            "name": "RootWatch",
+            "url": "https://rootwatch.dev/",
+            "logo": "https://rootwatch.dev/og.png",
+            "sameAs": ["https://app.rootwatch.dev", "https://www.canweb.net"]
+          }
+        ]
+      }
+    </script>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>"
+    />
+    <style>
+      :root {
+        --bg: #09090b;
+        --panel: #101013;
+        --border: #27272a;
+        --text: #e4e4e7;
+        --dim: #a1a1aa;
+        --faint: #71717a;
+        --accent: #3b82f6;
+        --green: #34d399;
+        --amber: #fbbf24;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Inter,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      header {
+        border-bottom: 1px solid var(--border);
+        padding: 20px 0;
+        position: sticky;
+        top: 0;
+        background: rgba(9, 9, 11, 0.85);
+        backdrop-filter: blur(8px);
+        z-index: 10;
+      }
+      header .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .logo {
+        font: 700 18px var(--mono);
+        letter-spacing: 0.12em;
+      }
+      .logo span {
+        color: var(--accent);
+      }
+      nav a {
+        color: var(--dim);
+        text-decoration: none;
+        margin-left: 24px;
+        font-size: 14px;
+      }
+      nav a:hover {
+        color: var(--text);
+      }
+      .btn {
+        display: inline-block;
+        padding: 10px 20px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+        border: 1px solid transparent;
+      }
+      .btn:hover {
+        background: #2563eb;
+      }
+      .btn.ghost {
+        background: transparent;
+        border-color: var(--border);
+        color: var(--text);
+      }
+      .btn.ghost:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .hero {
+        padding: 96px 0 72px;
+        text-align: center;
+      }
+      .hero .tag {
+        display: inline-block;
+        font: 500 12px var(--mono);
+        color: var(--green);
+        border: 1px solid rgba(52, 211, 153, 0.3);
+        border-radius: 99px;
+        padding: 4px 14px;
+        margin-bottom: 28px;
+      }
+      h1 {
+        font-size: clamp(38px, 7vw, 64px);
+        line-height: 1.05;
+        letter-spacing: -0.02em;
+        font-weight: 700;
+      }
+      h1 em {
+        font-style: normal;
+        color: var(--accent);
+      }
+      .hero p {
+        color: var(--dim);
+        max-width: 560px;
+        margin: 24px auto 36px;
+        font-size: 18px;
+      }
+      .hero .cta {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .term {
+        margin: 48px auto 0;
+        max-width: 640px;
+        text-align: left;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .term .bar {
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--border);
+        color: var(--faint);
+        font: 12px var(--mono);
+        display: flex;
+        gap: 6px;
+      }
+      .term .bar i {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #3f3f46;
+        display: inline-block;
+      }
+      .term pre {
+        padding: 20px;
+        overflow-x: auto;
+        font: 13.5px/1.8 var(--mono);
+        color: var(--dim);
+      }
+      .term pre .c {
+        color: var(--faint);
+      }
+      .term pre .g {
+        color: var(--green);
+      }
+      .term pre .w {
+        color: var(--text);
+      }
+      section {
+        padding: 64px 0;
+      }
+      h2 {
+        font-size: 28px;
+        letter-spacing: -0.01em;
+        margin-bottom: 8px;
+      }
+      .sub {
+        color: var(--dim);
+        margin-bottom: 36px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+      }
+      .card h3 {
+        font-size: 16px;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .card h3 .n {
+        font: 600 11px var(--mono);
+        color: var(--accent);
+        border: 1px solid rgba(59, 130, 246, 0.4);
+        border-radius: 6px;
+        padding: 2px 7px;
+      }
+      .card p {
+        color: var(--dim);
+        font-size: 14px;
+        margin-bottom: 14px;
+      }
+      pre.code {
+        background: #0c0c0f;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 16px;
+        font: 12.5px/1.75 var(--mono);
+        overflow-x: auto;
+        color: var(--dim);
+      }
+      pre.code .k {
+        color: var(--green);
+      }
+      pre.code .s {
+        color: var(--amber);
+      }
+      .pill {
+        display: inline-block;
+        font: 500 11px var(--mono);
+        color: var(--faint);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 2px 8px;
+        margin-top: 10px;
+      }
+      .steps {
+        counter-reset: s;
+      }
+      .step {
+        display: flex;
+        gap: 18px;
+        padding: 20px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .step:last-child {
+        border-bottom: 0;
+      }
+      .step::before {
+        counter-increment: s;
+        content: counter(s);
+        flex: 0 0 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid var(--accent);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font: 600 14px var(--mono);
+      }
+      .step h4 {
+        margin-bottom: 4px;
+      }
+      .step p {
+        color: var(--dim);
+        font-size: 14px;
+      }
+      .step code {
+        font: 12.5px var(--mono);
+        color: var(--green);
+        background: #0c0c0f;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 2px 6px;
+      }
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 32px 0 48px;
+        color: var(--faint);
+        font-size: 13px;
+      }
+      footer .wrap {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      footer a {
+        color: var(--dim);
+        text-decoration: none;
+        margin-left: 16px;
+      }
+      footer a:hover {
+        color: var(--text);
+      }
+      @media (max-width: 640px) {
+        .hero {
+          padding: 64px 0 48px;
+        }
+        nav a {
+          margin-left: 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <div class="logo">ROOT<span>WATCH</span></div>
+        <nav>
+          <a href="#start">Quickstart</a>
+          <a href="#cli">CLI</a>
+          <a href="#mcp">MCP</a>
+          <a href="#api">API</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#managed">Managed</a>
+          <a class="btn" href="https://app.rootwatch.dev">Dashboard</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="hero wrap">
+      <div class="tag">host security, for developers</div>
+      <h1>The dev security<br /><em>control panel</em></h1>
+      <p>
+        Vulnerability scanning, live host metrics, network discovery, threat intel and compliance
+        checks — one dashboard, one API, one CLI. Real data only; nothing mocked.
+      </p>
+      <div class="cta">
+        <a class="btn" href="https://app.rootwatch.dev">Open the dashboard</a>
+        <a class="btn ghost" href="#start">Quickstart</a>
+      </div>
+
+      <div class="term">
+        <div class="bar"><i></i><i></i><i></i> terminal</div>
+        <pre><span class="c"># install the CLI</span>
+<span class="w">npm i -g @rootwatch/cli</span>
+
+<span class="c"># point it at the control plane</span>
+<span class="w">rootwatch login --server https://app.rootwatch.dev --token rw_…</span>
+
+<span class="c"># scan this machine</span>
+<span class="w">rootwatch scan</span>
+<span class="g">✓ secrets  ✓ dependencies  ✓ repo hygiene — findings pushed to dashboard</span></pre>
+      </div>
+    </div>
+
+    <section class="wrap" id="start">
+      <h2>Quickstart</h2>
+      <p class="sub">Sixty seconds from zero to your first scan.</p>
+      <div class="steps">
+        <div class="step">
+          <div>
+            <h4>Create an account</h4>
+            <p>
+              Sign up at
+              <a href="https://app.rootwatch.dev" style="color: var(--accent)">app.rootwatch.dev</a>
+              — your organization is created automatically.
+            </p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h4>Mint an API token</h4>
+            <p>
+              Dashboard → Access Control → New token. Pick scopes (<code>read</code>,
+              <code>scan</code>, <code>write</code>, <code>admin</code>). Tokens are
+              <code>rw_…</code>, shown once, hashed at rest.
+            </p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h4>Connect a client</h4>
+            <p>
+              CLI, MCP agent, desktop app, or curl — every client authenticates with the same token
+              against the same org-scoped data.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap" id="cli">
+      <h2>Clients</h2>
+      <p class="sub">One trust boundary — the server. Four ways in.</p>
+      <div class="grid">
+        <div class="card">
+          <h3><span class="n">CLI</span> rootwatch / rw</h3>
+          <p>
+            Secrets, dependency and hygiene scans on any repo or host. Results land in the
+            dashboard.
+          </p>
+          <pre class="code"><span class="k">npm</span> i -g @rootwatch/cli
+<span class="k">rootwatch</span> login --server <span class="s">https://app.rootwatch.dev</span> \
+          --token <span class="s">rw_…</span>
+<span class="k">rootwatch</span> scan <span class="c"># secrets · deps · hygiene</span>
+<span class="k">rootwatch</span> scan --deps</pre>
+          <span class="pill">npm · build from source: cli/</span>
+        </div>
+
+        <div class="card" id="mcp">
+          <h3><span class="n">MCP</span> For AI agents</h3>
+          <p>
+            Streamable HTTP MCP server with 11 tools — or the stdio bridge for desktop MCP clients.
+          </p>
+          <pre class="code"><span class="c">// claude_desktop_config.json / mcp.json</span>
+{
+  <span class="s">"mcpServers"</span>: {
+    <span class="s">"rootwatch"</span>: {
+      <span class="s">"url"</span>: <span class="s">"https://app.rootwatch.dev/mcp"</span>,
+      <span class="s">"headers"</span>: { <span class="s">"Authorization"</span>: <span class="s">"Bearer rw_…"</span> }
+    }
+  }
+}</pre>
+          <span class="pill">stdio bridge: rootwatch mcp</span>
+        </div>
+
+        <div class="card" id="api">
+          <h3><span class="n">API</span> REST /api/v1</h3>
+          <p>Org-scoped Bearer-token API. Score, hosts, scans, vulnerabilities, events, reports.</p>
+          <pre
+            class="code"
+          ><span class="k">curl</span> -H <span class="s">"Authorization: Bearer rw_…"</span> \
+     https://app.rootwatch.dev/api/v1/score
+
+<span class="k">curl</span> -H <span class="s">"Authorization: Bearer rw_…"</span> \
+     https://app.rootwatch.dev/api/v1/vulnerabilities</pre>
+          <span class="pill">scopes: read · scan · write · admin</span>
+        </div>
+
+        <div class="card">
+          <h3><span class="n">APP</span> Desktop</h3>
+          <p>
+            Electron thin client for Linux — AppImage, deb, snap. Same login, same data, native
+            shell.
+          </p>
+          <pre class="code"><span class="c"># installers are provided during</span>
+<span class="c"># managed onboarding — see below</span></pre>
+          <span class="pill">linux · experimental flatpak</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap">
+      <h2>What it watches</h2>
+      <p class="sub">A rule engine plus real collectors — no sample data, ever.</p>
+      <div class="grid">
+        <div class="card">
+          <h3>Host rule engine</h3>
+          <p>
+            SSH config, firewall state, pending security updates, Docker socket exposure,
+            failed-login spikes, unexpected public listeners. Failures become findings; recoveries
+            resolve them.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Network discovery</h3>
+          <p>
+            Neighbor table discovery plus TCP connect scans — open ports, risky exposed services,
+            per-device history and risk scores.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Threat intel &amp; Trivy</h3>
+          <p>
+            CISA KEV feed for exploited-vuln awareness, Trivy filesystem scans for real CVEs in
+            installed packages.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Reports &amp; compliance</h3>
+          <p>
+            Live-data HTML reports, compliance check rows, audit log — every surface org-scoped.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap" id="pricing">
+      <h2>Pricing</h2>
+      <p class="sub">Free to start — upgrade when you need more seats, tokens, or hosted AI.</p>
+      <div class="grid">
+        <div class="card">
+          <h3>Free</h3>
+          <p>For solo developers getting a feel for their own machine.</p>
+          <pre class="code"><span class="w">$0</span> <span class="c">/ month</span>
+<span class="g">2 seats · 3 API tokens</span>
+<span class="c">BYOK AI (your own provider key)</span>
+<span class="c">dashboard · API · MCP · CLI</span></pre>
+          <a class="btn ghost" href="https://app.rootwatch.dev" style="margin-top: 14px"
+            >Start free</a
+          >
+        </div>
+
+        <div class="card" style="border-color: rgba(59, 130, 246, 0.5)">
+          <h3>Pro</h3>
+          <p>For teams who want hosted AI analysis and room to grow.</p>
+          <pre class="code"><span class="w">$20 USD</span> <span class="c">/ month</span>
+<span class="g">10 seats · 10 API tokens</span>
+<span class="g">hosted AI insights + predictions</span>
+<span class="c">priority support</span></pre>
+          <a
+            class="btn"
+            href="https://app.rootwatch.dev/settings/organization?tab=plan"
+            style="margin-top: 14px"
+            >Upgrade in-app</a
+          >
+        </div>
+
+        <div class="card">
+          <h3>Managed</h3>
+          <p>Canadian Web Consulting runs it for you — onboarding, monitoring, monthly reports.</p>
+          <pre class="code"><span class="w">Monthly retainer</span>
+<span class="g">unlimited seats + tokens</span>
+<span class="g">we operate + report</span>
+<span class="c">per-client org isolation</span></pre>
+          <a class="btn ghost" href="https://www.canweb.net" style="margin-top: 14px">Talk to us</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap" id="managed">
+      <h2>Managed service</h2>
+      <p class="sub">
+        Prefer it run for you? Canadian Web Consulting operates the control plane and onboards your
+        machines.
+      </p>
+      <div class="grid">
+        <div class="card">
+          <h3>We run it</h3>
+          <p>
+            Hosted control plane, updates, monitoring and alerting — operated by
+            <a href="https://www.canweb.net" style="color: var(--accent)">Canadian Web Consulting</a
+            >.
+          </p>
+        </div>
+        <div class="card">
+          <h3>We onboard your hosts</h3>
+          <p>
+            CLI/agent rollout across dev machines and servers, org-scoped tokens, per-client
+            isolation.
+          </p>
+        </div>
+        <div class="card">
+          <h3>You get reports</h3>
+          <p>Monthly security posture reports and real incident alerts — findings, not noise.</p>
+        </div>
+      </div>
+      <p style="margin-top: 24px">
+        <a class="btn ghost" href="https://www.canweb.net">Talk to Canadian Web Consulting</a>
+      </p>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        <span
+          >ROOTWATCH — a
+          <a href="https://www.canweb.net" style="margin-left: 0">Canadian Web Consulting</a>
+          service</span
+        >
+        <span>
+          <a href="https://app.rootwatch.dev">Dashboard</a>
+          <a href="https://www.canweb.net">canweb.net</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

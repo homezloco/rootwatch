@@ -1,0 +1,32 @@
+#!/bin/bash
+# remove-docker-dropin — RootWatch docker.service override remover.
+#
+# Installed root:root mode 0750 at
+# /opt/rootwatch/libexec/remove-docker-dropin. Invoked by
+# rootwatch-remediate (already root) with no arguments.
+#
+# Deletes /etc/systemd/system/docker.service.d/99-rootwatch.conf — the only
+# file this helper may ever remove (path is hardcoded, not an argument).
+# Caller is responsible for `systemctl daemon-reload` and
+# `systemctl restart docker` afterwards (separate plan steps).
+set -euo pipefail
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+readonly DROPIN="/etc/systemd/system/docker.service.d/99-rootwatch.conf"
+
+refuse() {
+  echo "remove-docker-dropin: refusing: $*" >&2
+  exit 2
+}
+
+[[ $EUID -eq 0 ]] || refuse "must run as root"
+[[ $# -eq 0 ]] || refuse "usage: remove-docker-dropin (no arguments)"
+
+if [[ -f "$DROPIN" ]]; then
+  rm -f "$DROPIN"
+  echo "remove-docker-dropin: removed ${DROPIN}"
+else
+  echo "remove-docker-dropin: no drop-in present, nothing to do"
+fi

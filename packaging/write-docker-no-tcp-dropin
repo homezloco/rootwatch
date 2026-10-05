@@ -1,0 +1,47 @@
+#!/bin/bash
+# write-docker-no-tcp-dropin — RootWatch docker.service override writer.
+#
+# Installed root:root mode 0750 at
+# /opt/rootwatch/libexec/write-docker-no-tcp-dropin. Invoked by
+# rootwatch-remediate (already root) with no arguments.
+#
+# Writes /etc/systemd/system/docker.service.d/99-rootwatch.conf, overriding
+# ExecStart so dockerd binds only the local fd socket — removing any
+# -H tcp:// listener. Caller is responsible for `systemctl daemon-reload`
+# and `systemctl restart docker` afterwards (they are separate plan steps).
+set -euo pipefail
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+readonly DROPIN_DIR="/etc/systemd/system/docker.service.d"
+readonly DROPIN="${DROPIN_DIR}/99-rootwatch.conf"
+
+refuse() {
+  echo "write-docker-no-tcp-dropin: refusing: $*" >&2
+  exit 2
+}
+
+[[ $EUID -eq 0 ]] || refuse "must run as root"
+[[ $# -eq 0 ]] || refuse "usage: write-docker-no-tcp-dropin (no arguments)"
+
+# Locate dockerd — refuse rather than write a bogus ExecStart.
+dockerd=""
+for p in /usr/bin/dockerd /usr/sbin/dockerd /usr/local/bin/dockerd; do
+  [[ -x "$p" ]] && { dockerd="$p"; break; }
+done
+[[ -n "$dockerd" ]] || dockerd="$(command -v dockerd || true)"
+[[ -n "$dockerd" ]] || refuse "dockerd binary not found"
+
+mkdir -p "$DROPIN_DIR"
+cat > "$DROPIN" <<EOF
+# Managed by RootWatch — do not edit by hand.
+# Clears the unit's default ExecStart (which carried -H tcp:// listeners)
+# and re-binds dockerd to the local fd socket only.
+[Service]
+ExecStart=
+ExecStart=${dockerd} -H fd:// --containerd=/run/containerd/containerd.sock
+EOF
+chmod 0644 "$DROPIN"
+
+echo "write-docker-no-tcp-dropin: wrote ${DROPIN} (dockerd=${dockerd})"

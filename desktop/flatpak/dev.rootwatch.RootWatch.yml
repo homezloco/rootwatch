@@ -1,0 +1,72 @@
+# Flathub manifest for RootWatch (dev.rootwatch.RootWatch)
+#
+# STATUS: EXPERIMENTAL — not currently buildable end-to-end.
+# `npm ci` below requires a package-lock.json inside desktop/, but the
+# desktop app is an npm workspace member of the repo root (which holds the
+# real lockfile). Before building you must generate a desktop-scoped
+# lockfile (e.g. `cd .. && npm install --package-lock-only --workspaces=false`)
+# and then run flatpak-node-generator against it:
+#   flatpak-node-generator npm ../package-lock.json -o generated-sources.json
+#
+# Build steps (see desktop/README.md for the full walkthrough):
+#   1. flatpak install flathub org.flatpak.Builder
+#   2. Generate the lockfile + npm sources as described above
+#   3. flatpak run org.flatpak.Builder --force-clean --sandbox --user \
+#        --install --install-deps-from=flathub --ccache \
+#        --mirror-screenshots-url=https://dl.flathub.org/media \
+#        --repo=repo builddir dev.rootwatch.RootWatch.yml
+
+app-id: dev.rootwatch.RootWatch
+runtime: org.freedesktop.Platform
+runtime-version: "24.08"
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: "24.08"
+command: rootwatch
+separate-locales: false
+
+finish-args:
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=network
+  # Desktop notifications + OS keychain (safeStorage) — both required.
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.freedesktop.secrets
+  - --device=dri
+
+modules:
+  - name: rootwatch
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/node20/bin
+      env:
+        # electron-builder must not try to download its own Electron build.
+        ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        npm_config_cache: npm-cache
+    build-commands:
+      # Requires desktop/package-lock.json (see header note) + generated-sources.json.
+      - npm ci --offline --ignore-scripts
+      # Produce an unpacked linux build against the BaseApp's Electron.
+      # electron-builder.yml sets directories.output=../release; override to
+      # keep artifacts inside the build dir.
+      - npx electron-builder --linux dir --publish=never -c.directories.output=release
+      - install -Dm755 flatpak/run.sh /app/bin/rootwatch
+      - install -d /app/lib/rootwatch
+      - cp -r release/linux-unpacked/resources/app.asar /app/lib/rootwatch/
+      - install -Dm644 flatpak/dev.rootwatch.RootWatch.desktop /app/share/applications/dev.rootwatch.RootWatch.desktop
+      - install -Dm644 flatpak/dev.rootwatch.RootWatch.metainfo.xml /app/share/metainfo/dev.rootwatch.RootWatch.metainfo.xml
+      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/dev.rootwatch.RootWatch.png
+    sources:
+      - type: dir
+        path: ..
+      - generated-sources.json
+
+  - name: wrapper
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 run.sh /app/bin/rootwatch
+    sources:
+      - type: file
+        path: run.sh

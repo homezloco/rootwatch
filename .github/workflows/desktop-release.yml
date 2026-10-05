@@ -1,0 +1,53 @@
+name: desktop-release
+
+# Builds the desktop packages and publishes them to the PUBLIC
+# releases-only repo (homezloco/rootwatch-releases) — the source repo stays
+# private. Trigger: push a version tag (`git tag v0.4.3 && git push origin
+# v0.4.3`) or run manually. latest-linux.yml ships as an asset so
+# electron-updater's github provider resolves feeds from that repo.
+#
+# RELEASES_TOKEN: a PAT with `repo` scope on homezloco/rootwatch-releases
+# (GITHUB_TOKEN can't write across repos).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.4.3)"
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # --prefix keeps this working in the public mirror repo, which has
+      # no root package.json/lockfile.
+      - name: Install desktop deps
+        run: npm --prefix desktop install
+
+      - name: Build desktop packages (AppImage + deb + snap)
+        run: npm --prefix desktop run dist
+
+      - name: Publish release to rootwatch-releases
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -e
+          cd release
+          assets=(RootWatch-*.AppImage rootwatch-desktop_*_amd64.deb rootwatch-desktop_*_amd64.snap latest-linux.yml)
+          if gh release view "$TAG" --repo homezloco/rootwatch-releases >/dev/null 2>&1; then
+            gh release upload "$TAG" --repo homezloco/rootwatch-releases --clobber "${assets[@]}"
+          else
+            gh release create "$TAG" --repo homezloco/rootwatch-releases \
+              --title "RootWatch Desktop ${TAG#v}" --generate-notes "${assets[@]}"
+          fi

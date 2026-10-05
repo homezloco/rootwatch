@@ -1,0 +1,101 @@
+appId: dev.rootwatch.RootWatch
+productName: RootWatch
+copyright: Copyright © 2026 RootWatch
+
+directories:
+  output: ../release
+  buildResources: .
+
+files:
+  - "!**/node_modules/**"
+  - "node_modules/systeminformation/**"
+  # electron-updater + its (hoisted) transitive deps — workspace layout
+  # means dep auto-collection can't be trusted; list them explicitly.
+  - "node_modules/electron-updater/**"
+  - "node_modules/builder-util-runtime/**"
+  - "node_modules/fs-extra/**"
+  - "node_modules/js-yaml/**"
+  - "node_modules/lazy-val/**"
+  - "node_modules/lodash.escaperegexp/**"
+  - "node_modules/lodash.isequal/**"
+  - "node_modules/semver/**"
+  - "node_modules/tiny-typed-emitter/**"
+  - "node_modules/at-least-node/**"
+  - "node_modules/graceful-fs/**"
+  - "node_modules/jsonfile/**"
+  - "node_modules/universalify/**"
+  - "node_modules/argparse/**"
+  - "node_modules/debug/**"
+  - "node_modules/sax/**"
+  - "node_modules/ms/**"
+  - "*.cjs"
+  - connect.js
+  - connect.html
+  - device.html
+  - icon.png
+  - package.json
+  # Only systeminformation ships in the asar — workspace dep-collection would
+  # otherwise pull the root app's whole node_modules in.
+
+executableName: rootwatch
+
+# No native modules — skip the ABI rebuild step entirely.
+npmRebuild: false
+nodeGypRebuild: false
+
+linux:
+  icon: icon.png
+  category: Utility
+  syncDesktopName: true
+  synopsis: The dev security control panel
+  description: >-
+    RootWatch desktop client. Connects to a RootWatch instance
+    (rootwatch.dev or self-hosted) to monitor host security posture,
+    vulnerabilities, listening ports, and events — with a tray score
+    indicator and critical-event notifications.
+  maintainer: RootWatch <hello@rootwatch.dev>
+  vendor: RootWatch
+  target:
+    - AppImage
+    - deb
+    - snap
+  desktop:
+    entry:
+      Name: RootWatch
+      Comment: The dev security control panel
+      Categories: Utility;Security;Network;
+      StartupWMClass: rootwatch
+      Keywords: security;monitoring;vulnerabilities;scan;
+
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - libsecret-1-0
+
+snap:
+  confinement: strict
+  grade: stable
+  summary: The dev security control panel
+  plugs:
+    - desktop
+    - desktop-legacy
+    - home
+    - network
+    - x11
+    - wayland
+    - unity7
+    - opengl
+    - gnome-42-2204
+
+# AppImage updates resolve through GitHub releases on the PUBLIC
+# releases-only repo (source repo stays private; only built binaries are
+# published). .deb upgrades are manual downloads; snap/flatpak update
+# through their stores instead.
+publish:
+  provider: github
+  owner: homezloco
+  repo: rootwatch-releases

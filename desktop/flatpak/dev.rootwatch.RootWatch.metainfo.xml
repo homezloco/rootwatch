@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>dev.rootwatch.RootWatch</id>
+  <name>RootWatch</name>
+  <summary>The dev security control panel</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>
+      RootWatch is the dev security control panel. This desktop client
+      connects to your RootWatch instance — rootwatch.dev cloud or a
+      self-hosted deployment — and gives you live security posture at a
+      glance.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Full dashboard in a native window (system metrics, security events, vulnerabilities, listening ports)</li>
+      <li>System tray indicator with a live security score</li>
+      <li>Desktop notifications for new Critical and High severity events</li>
+      <li>Org-scoped API token auth (rw_…) stored encrypted via the OS keychain</li>
+      <li>Pairs with the `rootwatch` CLI and MCP server for agent workflows</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">dev.rootwatch.RootWatch.desktop</launchable>
+
+  <url type="homepage">https://rootwatch.dev</url>
+  <url type="bugtracker">https://github.com/homezloco/rootwatch/issues</url>
+
+  <developer>
+    <name>RootWatch</name>
+  </developer>
+
+  <categories>
+    <category>Utility</category>
+    <category>Security</category>
+    <category>Network</category>
+  </categories>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="0.1.0" date="2026-09-29">
+      <description>
+        <p>Initial release: connect to a RootWatch instance, tray score monitor, critical-event notifications.</p>
+      </description>
+    </release>
+  </releases>
+
+  <!-- TODO before Flathub submission: add <screenshots> with images hosted
+       on a stable URL (Flathub quality guidelines require them). -->
+</component>

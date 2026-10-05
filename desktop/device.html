@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+    />
+    <title>This Device — RootWatch</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #0a0f14;
+        color: #d7e0ea;
+        font-family: system-ui, "Segoe UI", Ubuntu, sans-serif;
+      }
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 28px 20px 60px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0;
+        letter-spacing: 0.02em;
+      }
+      h1 span {
+        color: #4fd1c5;
+      }
+      .sub {
+        color: #8ba0b5;
+        font-size: 13px;
+        margin: 4px 0 24px;
+      }
+      .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .card {
+        background: #101820;
+        border: 1px solid #1f2d3d;
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 16px;
+      }
+      .row {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        align-items: center;
+        font-size: 13px;
+      }
+      .muted {
+        color: #8ba0b5;
+      }
+      .mono {
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        border: 1px solid #24384c;
+        background: #0d141b;
+      }
+      .risk-critical {
+        color: #fc8181;
+        border-color: #7b2c2c;
+      }
+      .risk-high {
+        color: #f6ad55;
+        border-color: #7b5a2c;
+      }
+      .risk-medium {
+        color: #f6e05e;
+        border-color: #6b6228;
+      }
+      .risk-low {
+        color: #63b3ed;
+        border-color: #2c4a7b;
+      }
+      .risk-info {
+        color: #8ba0b5;
+      }
+      .scope-public {
+        color: #fc8181;
+      }
+      .scope-private {
+        color: #f6ad55;
+      }
+      .scope-tailscale {
+        color: #63b3ed;
+      }
+      .scope-loopback {
+        color: #718096;
+      }
+      button {
+        padding: 8px 14px;
+        border: 1px solid #24384c;
+        border-radius: 8px;
+        background: #16222e;
+        color: #d7e0ea;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button.primary {
+        background: #4fd1c5;
+        color: #06121a;
+        border: 0;
+        font-weight: 600;
+      }
+      button.danger {
+        border-color: #7b2c2c;
+        color: #fc8181;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: wait;
+      }
+      a {
+        color: #4fd1c5;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 8px 10px;
+        border-bottom: 1px solid #1b2836;
+        vertical-align: top;
+      }
+      th {
+        color: #6b8199;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .detail {
+        color: #8ba0b5;
+        font-size: 12px;
+        margin-top: 4px;
+      }
+      .code {
+        font-size: 26px;
+        letter-spacing: 0.15em;
+        font-family: ui-monospace, monospace;
+        color: #4fd1c5;
+        padding: 10px 16px;
+        background: #0a0f14;
+        border: 1px dashed #24384c;
+        border-radius: 8px;
+        display: inline-block;
+      }
+      .err {
+        color: #fc8181;
+        font-size: 12.5px;
+      }
+      .ok {
+        color: #68d391;
+        font-size: 12.5px;
+      }
+      #toast {
+        position: fixed;
+        bottom: 18px;
+        right: 18px;
+        padding: 10px 16px;
+        border-radius: 8px;
+        background: #16222e;
+        border: 1px solid #24384c;
+        font-size: 13px;
+        display: none;
+      }
+      .empty {
+        text-align: center;
+        padding: 40px;
+        color: #6b8199;
+      }
+      .skel {
+        display: inline-block;
+        height: 12px;
+        border-radius: 6px;
+        background: #16222e;
+        vertical-align: middle;
+        animation: rw-pulse 1.4s ease-in-out infinite;
+      }
+      .skel-block {
+        display: block;
+      }
+      @keyframes rw-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <div>
+          <h1><span>◉</span> This Device</h1>
+          <p class="sub">local listener inventory — processes holding open ports on this machine</p>
+        </div>
+        <button id="rescan">↻ Rescan</button>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div>
+            <span class="muted">Host</span>
+            <b id="hostname"><span class="skel" style="width: 110px"></span></b>
+          </div>
+          <div>
+            <span class="muted">Device id</span>
+            <span class="mono" id="hostid"><span class="skel" style="width: 72px"></span></span>
+          </div>
+          <div>
+            <span class="muted">Sync</span>
+            <span id="sync"><span class="skel" style="width: 80px"></span></span>
+          </div>
+        </div>
+        <div id="pairArea" style="margin-top: 14px"></div>
+      </div>
+
+      <div class="card">
+        <b>Security checks</b>
+        <div id="checks" class="detail" style="margin-top: 8px">
+          <span class="skel skel-block" style="width: 55%"></span>
+          <span class="skel skel-block" style="width: 38%; margin-top: 8px"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content: space-between">
+          <b>Listening ports <span class="muted" id="count"></span></b>
+        </div>
+        <div id="list">
+          <div style="padding: 8px 10px">
+            <span class="skel skel-block" style="height: 14px"></span>
+            <span class="skel skel-block" style="height: 14px; margin-top: 14px; width: 85%"></span>
+            <span class="skel skel-block" style="height: 14px; margin-top: 14px; width: 70%"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content: space-between">
+          <b>Performance &amp; reclaim</b>
+          <span class="muted" id="perfSummary"></span>
+        </div>
+        <div id="perf" class="detail" style="margin-top: 8px">
+          <span class="skel skel-block" style="width: 48%"></span>
+          <span class="skel skel-block" style="width: 64%; margin-top: 8px"></span>
+        </div>
+      </div>
+
+      <div class="card" id="scanCard" style="display: none">
+        <b>Project scan <span class="muted" id="scanDir"></span></b>
+        <div id="scanResult" class="detail" style="margin-top: 8px"></div>
+      </div>
+
+      <div class="card">
+        <details>
+          <summary style="cursor: pointer">
+            <b>Listener history</b> <span class="muted">— seen before across app restarts</span>
+          </summary>
+          <div id="history" class="detail" style="margin-top: 10px">
+            <span class="skel skel-block" style="width: 70%"></span>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div id="toast"></div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) =>
+        String(s ?? "").replace(
+          /[&<>"']/g,
+          (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+        );
+
+      const LIST_SKELETON =
+        '<div style="padding:8px 10px">' +
+        [100, 85, 70]
+          .map(
+            (w) =>
+              `<span class="skel skel-block" style="height:14px;${w === 100 ? "" : "margin-top:14px;"}width:${w}%"></span>`,
+          )
+          .join("") +
+        "</div>";
+
+      let toastTimer = null;
+      function toast(msg, bad) {
+        const t = $("toast");
+        t.textContent = msg;
+        t.style.display = "block";
+        t.style.borderColor = bad ? "#7b2c2c" : "#24384c";
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => (t.style.display = "none"), 4000);
+      }
+
+      function age(a) {
+        if (a == null) return "—";
+        if (a < 120) return `${a}s`;
+        if (a < 7200) return `${Math.round(a / 60)}m`;
+        if (a < 172800) return `${Math.round(a / 3600)}h`;
+        return `${Math.round(a / 86400)}d`;
+      }
+
+      async function loadStatus() {
+        const s = await window.rootwatch.deviceStatus();
+        $("hostname").textContent = s.hostname;
+        $("hostid").textContent = s.hostId ?? "…";
+        $("sync").innerHTML = s.paired
+          ? `<span class="${s.state === "offline-queued" ? "err" : "ok"}">${s.state === "offline-queued" ? "offline — reports queued" : "synced"}</span> <span class="muted">${s.lastReportAt ? "last report " + new Date(s.lastReportAt).toLocaleTimeString() : ""}</span>${s.queued > 0 ? ` <span class="badge">${s.queued} queued</span>` : ""}${s.lastError ? ` <span class="err">${esc(s.lastError)}</span>` : ""}`
+          : '<span class="muted">not paired</span>';
+        renderPair(s);
+      }
+
+      function renderPair(s) {
+        const el = $("pairArea");
+        if (s.paired) {
+          el.innerHTML = `<span class="muted">This device reports to your instance every 60s.</span>
+        <button id="unpair" style="margin-left:10px">Unpair</button>`;
+          el.querySelector("#unpair").onclick = async () => {
+            await window.rootwatch.deviceUnpair();
+            loadStatus();
+          };
+        } else if (s.enrollmentCode) {
+          el.innerHTML = `<span class="muted">Approve this code in your instance:</span>
+        <span class="code">${esc(s.enrollmentCode)}</span>
+        <a href="#" id="openVerify" style="margin-left:10px">open approval page ↗</a>
+        <span class="muted" id="pollNote">waiting for approval…</span>`;
+          el.querySelector("#openVerify").onclick = (e) => {
+            e.preventDefault();
+            window.rootwatch.openExternal(s.verifyUrl);
+          };
+          pollClaim();
+        } else {
+          el.innerHTML = `<button id="pair" class="primary">Pair this device</button>
+        <span class="muted"> — reports posture + listeners to your connected instance (needs an org admin's approval).</span>`;
+          el.querySelector("#pair").onclick = async () => {
+            const r = await window.rootwatch.deviceEnrollStart();
+            if (r.ok) loadStatus();
+            else toast(r.error || "enroll failed", true);
+          };
+        }
+      }
+
+      let polling = false;
+      async function pollClaim() {
+        if (polling) return;
+        polling = true;
+        for (let i = 0; i < 150; i++) {
+          // ~10min window
+          await new Promise((r) => setTimeout(r, 4000));
+          const r = await window.rootwatch.deviceEnrollPoll();
+          if (r.status === "approved") {
+            polling = false;
+            toast("Device paired — reporting started");
+            return loadStatus();
+          }
+          if (r.status !== "pending") {
+            polling = false;
+            return loadStatus();
+          }
+        }
+        polling = false;
+      }
+
+      async function loadListeners() {
+        $("list").innerHTML = LIST_SKELETON;
+        const { listeners } = await window.rootwatch.deviceListeners(true);
+        render(listeners);
+      }
+
+      function render(listeners) {
+        if (!listeners.length) {
+          $("list").innerHTML = '<div class="empty">No LISTEN sockets detected.</div>';
+          $("count").textContent = "";
+          return;
+        }
+        $("count").textContent = `(${listeners.length} processes)`;
+        $("list").innerHTML = `<table>
+      <tr><th>Port</th><th>Scope</th><th>Service</th><th>Class</th><th>Risk</th><th>Use</th><th>Age</th><th>Cost</th><th>PID</th><th></th></tr>
+      ${listeners
+        .map(
+          (l) => `
+        <tr>
+          <td class="mono">${l.ports.map((p) => `${p.port}/${p.protocol}`).join("<br>")}</td>
+          <td>${l.ports.map((p) => `<span class="scope-${p.scope}">${p.scope}</span>`).join("<br>")}
+            ${l.firewall ? `<br><span class="badge" title="${esc(l.firewall.detail)}">fw: ${l.firewall.allowed === true ? "admitted" : l.firewall.allowed === false ? "blocked" : "unreadable"}</span>` : ""}</td>
+          <td><b>${esc(l.name ?? "unknown")}</b><span class="badge" style="margin-left:6px">${l.identifiedBy}</span>
+            ${l.duplicate ? `<span class="badge" title="also running as pid ${esc(l.duplicate.pids.join(", "))} — matched on ${esc(l.duplicate.key)}">×${l.duplicate.pids.length + 1} instances</span>` : ""}
+            <div class="detail">${esc(l.spawnedBy ? "spawned by " + l.spawnedBy : "")}</div>
+            ${l.activity != null && l.activity.established > 0 ? `<div class="detail"><span class="ok">● in use</span>${l.activity.peers.length ? ` — from ${esc(l.activity.peers.map((p) => `${p.address} (${p.scope})`).join(", "))}` : ` — ${l.activity.established} connection(s)`}</div>` : ""}
+            ${l.egress != null && l.egress.count > 0 ? `<div class="detail">↗ outbound to ${esc(l.egress.peers.map((p) => `${p.address}:${p.port ?? "?"} (${p.scope})`).join(", "))}</div>` : ""}
+            ${l.persistence ? `<div class="detail">↻ returns on boot — ${esc(l.persistence.mechanism)}${l.persistence.detail ? ` <span class="muted">(${esc(l.persistence.detail)})</span>` : ""}</div>` : ""}
+            ${l.ports[0]?.url ? `<div class="detail"><a href="#" data-open="${esc(l.ports[0].url)}">${esc(l.ports[0].url)} ↗</a></div>` : ""}
+          </td>
+          <td>${l.class}</td>
+          <td><span class="badge risk-${l.risk}">${l.risk}</span><div class="detail">${esc(l.riskReasons[0] ?? "")}</div></td>
+          <td>${
+            l.activity == null
+              ? "—"
+              : l.activity.established > 0
+                ? `<span class="ok">${l.activity.established} conn</span>`
+                : l.lastActiveAt
+                  ? `<span class="muted">idle ${age(Math.max(0, Math.round((Date.now() - Date.parse(l.lastActiveAt)) / 1000)))}</span>`
+                  : '<span class="muted">idle</span>'
+          }</td>
+          <td>${age(l.ageSeconds ?? l.uptimeSec)}</td>
+          <td class="mono">${l.cpuPercent != null ? `${l.cpuPercent.toFixed(1)}%` : "—"}<br>${l.memRssMb != null ? `${Math.round(l.memRssMb)} MB` : ""}</td>
+          <td class="mono">${l.pid ?? "—"}</td>
+          <td style="white-space:nowrap">${
+            l.stoppable === "no"
+              ? `<span class="muted" title="${esc(l.stopReason ?? "")}">locked</span>`
+              : `<button class="danger" data-stop="${l.pid}" data-cls="${l.class}" data-name="${esc(l.name ?? "pid " + l.pid)}" data-active="${l.activity?.established ?? 0}" data-unit="${esc(l.unit ?? "")}" data-persist="${l.persistence ? 1 : ""}">Stop</button>`
+          }${l.cwd ? ` <button data-scan="${esc(l.cwd)}" data-name="${esc(l.name ?? "")}">Scan</button>` : ""}
+          </td>
+        </tr>`,
+        )
+        .join("")}
+    </table>`;
+        $("list")
+          .querySelectorAll("[data-open]")
+          .forEach(
+            (a) =>
+              (a.onclick = (e) => {
+                e.preventDefault();
+                window.rootwatch.openExternal(a.dataset.open);
+              }),
+          );
+        $("list")
+          .querySelectorAll("[data-stop]")
+          .forEach((b) => (b.onclick = () => stopPid(b)));
+        $("list")
+          .querySelectorAll("[data-scan]")
+          .forEach((b) => (b.onclick = () => runScan(b.dataset.scan, b.dataset.name)));
+      }
+
+      const mb = (n) =>
+        n == null ? "—" : n >= 1024 ? `${(n / 1024).toFixed(1)} GB` : `${Math.round(n)} MB`;
+      const cmdChip = (c) =>
+        `<code class="mono" style="background:#0d141b;border:1px solid #24384c;border-radius:4px;padding:1px 6px">${esc(c)}</code>`;
+
+      async function loadPerformance(force) {
+        const r = await window.rootwatch.devicePerformance(force === true);
+        const el = $("perf");
+        if (!r?.ok) {
+          el.innerHTML = `<span class="err">unavailable — ${esc(r?.error ?? "no perf module")}</span>`;
+          return;
+        }
+        renderPerf(r.report);
+      }
+
+      function renderPerf(r) {
+        const parts = [];
+        const lines = [];
+
+        // ── idle-cost reclaim ────────────────────────────────────────────
+        const rc = r.reclaim;
+        if (rc && rc.candidates.length) {
+          $("perfSummary").textContent = `~${mb(rc.totalMemMb)} reclaimable`;
+          parts.push(`<table>
+            <tr><th>Service</th><th>Ports</th><th>Memory</th><th>Idle</th><th></th></tr>
+            ${rc.candidates
+              .slice(0, 8)
+              .map(
+                (c) => `<tr>
+              <td><b>${esc(c.name ?? "pid " + c.pid)}</b></td>
+              <td class="mono">${esc(c.ports)}</td>
+              <td class="mono">${mb(c.memMb)}</td>
+              <td class="muted">${c.idleSec == null ? "—" : age(c.idleSec)}</td>
+              <td style="white-space:nowrap">${
+                c.stoppable === "elevated"
+                  ? c.suggestedFix
+                    ? cmdChip(c.suggestedFix)
+                    : '<span class="muted">needs sudo</span>'
+                  : `<button class="danger" data-stop="${c.pid}" data-cls="system" data-name="${esc(c.name ?? "pid " + c.pid)}" data-active="0" data-unit="${esc(c.unit ?? "")}" data-persist="">Stop</button>`
+              }</td>
+            </tr>`,
+              )
+              .join("")}
+          </table>`);
+        } else if (rc) {
+          lines.push("no idle services holding memory");
+        }
+
+        // ── pressure + thermal ───────────────────────────────────────────
+        const p = r.pressure;
+        if (p) {
+          const psi = [
+            ["cpu", p.cpu?.some10],
+            ["mem", p.memory?.some10],
+            ["io", p.io?.some10],
+            ["swap", p.swapPercent],
+          ]
+            .filter(([, v]) => v != null)
+            .map(([k, v]) => `${k} ${Math.round(v)}%`)
+            .join(" · ");
+          if (psi) lines.push(`pressure — ${psi}`);
+        }
+        const th = r.thermal;
+        if (th) {
+          const temps = th.temps
+            .slice(0, 4)
+            .map((t) => `${esc(t.label)} ${Math.round(t.celsius)}°C`)
+            .join(" · ");
+          if (temps)
+            lines.push(
+              `thermals — ${temps}${th.fans.length ? ` · ${th.fans.map((f) => `${f.rpm} RPM`).join(" ")}` : ""}`,
+            );
+          if (th.throttle) {
+            const t = th.throttle;
+            lines.push(
+              t.deltaMs != null && t.deltaMs > 0
+                ? `<span class="err">⚠ throttling now — ${(t.deltaMs / 1000).toFixed(0)}s in the last ${Math.round((t.deltaWindowSec ?? 0) / 60)}m</span>`
+                : t.deltaMs === 0
+                  ? `no thermal throttling in the last ${Math.round((t.deltaWindowSec ?? 0) / 60)}m`
+                  : t.notable
+                    ? `<span class="risk-high">thermal throttle history — ${(t.packageTimeMs / 60000).toFixed(0)} min this boot</span>`
+                    : "",
+            );
+          }
+        }
+
+        // ── boot + timers ────────────────────────────────────────────────
+        if (r.boot?.totalSeconds != null) {
+          const ph = r.boot.phases;
+          const phStr = ph
+            ? ["firmware", "loader", "kernel", "userspace"]
+                .filter((k) => ph[k] != null)
+                .map((k) => `${k} ${ph[k].toFixed(1)}s`)
+                .join(" + ")
+            : "";
+          const top = r.boot.blame
+            .slice(0, 3)
+            .map((b) => `${esc(b.unit)} ${b.seconds}s`)
+            .join(", ");
+          lines.push(
+            `boot ${r.boot.totalSeconds}s${phStr ? ` (${phStr})` : ""}${top ? ` — slowest: ${top}` : ""}`,
+          );
+        }
+        const timers = (r.timers ?? []).filter((t) => t.enabled === "enabled" && t.next);
+        if (timers.length)
+          lines.push(
+            `${timers.length} enabled timers — next: ${esc(timers[0].name)} ${new Date(timers[0].next).toLocaleTimeString()}`,
+          );
+
+        // ── disk reclaimables ────────────────────────────────────────────
+        const d = r.disk;
+        if (d) {
+          const bits = [];
+          if (d.docker?.length) bits.push(`docker ${d.docker.map((x) => x.reclaimable).join("+")}`);
+          if (d.journalMb != null) bits.push(`journal ${mb(d.journalMb)}`);
+          if (d.apt?.cacheMb) bits.push(`apt cache ${mb(d.apt.cacheMb)}`);
+          if (d.apt?.autoremove.length) bits.push(`${d.apt.autoremove.length} autoremove`);
+          if (d.apt?.residual.length) bits.push(`${d.apt.residual.length} residual`);
+          if (d.nodeModules?.length)
+            bits.push(`node_modules ${mb(d.nodeModules.reduce((n, x) => n + x.sizeMb, 0))}`);
+          if (d.disabledSnaps?.length) bits.push(`${d.disabledSnaps.length} disabled snaps`);
+          if (bits.length) lines.push(`disk reclaim — ${bits.join(" · ")}`);
+        }
+        if (r.stackDupes?.length)
+          lines.push(`deb+snap stacks: ${r.stackDupes.map((x) => esc(x.name)).join(", ")}`);
+        if (r.orphans?.length)
+          lines.push(
+            `${r.orphans.length} orphaned processes — ${r.orphans
+              .slice(0, 3)
+              .map((o) => `${esc(o.name)} ${mb(o.memMb)}`)
+              .join(", ")}`,
+          );
+
+        const detail = lines
+          .filter(Boolean)
+          .map((l) => `<div style="margin-top:6px">${l}</div>`)
+          .join("");
+        document.getElementById("perf").innerHTML =
+          (parts.join("") || "") + detail || "not evaluable";
+        document
+          .getElementById("perf")
+          .querySelectorAll("[data-stop]")
+          .forEach((b) => (b.onclick = () => stopPid(b)));
+      }
+
+      async function loadChecks() {
+        const r = await window.rootwatch.deviceChecks();
+        const el = $("checks");
+        if (!r?.ok) {
+          el.textContent = `unavailable — ${r?.error ?? "no check module"}`;
+          return;
+        }
+        if (!r.checks.length) {
+          el.textContent = "not evaluable on this platform";
+          return;
+        }
+        el.innerHTML = r.checks
+          .map(
+            (
+              c,
+            ) => `<div class="row" style="justify-content:space-between;padding:4px 0;border-bottom:1px solid #1b2836">
+          <span>${c.passed ? "✓" : "✗"} ${esc(c.name)} <span class="muted">${esc(c.detail ?? "")}</span></span>
+          <span class="badge risk-${c.passed ? "info" : c.severity}">${c.passed ? "pass" : c.severity}</span>
+        </div>`,
+          )
+          .join("");
+      }
+
+      async function runScan(dir, name) {
+        $("scanCard").style.display = "block";
+        $("scanDir").textContent = `— ${name || dir}`;
+        $("scanResult").textContent = `scanning ${dir} …`;
+        const r = await window.rootwatch.deviceScan(dir);
+        if (!r?.ok) {
+          $("scanResult").textContent = `scan failed — ${r?.error ?? "unavailable"}`;
+          return;
+        }
+        const head = `${r.scanned} files scanned${r.truncated ? " (truncated at file cap)" : ""} — ${r.findings.length} finding(s)`;
+        $("scanResult").innerHTML =
+          `<div class="muted">${head}</div>` +
+          r.findings
+            .map(
+              (
+                f,
+              ) => `<div class="row" style="justify-content:space-between;padding:4px 0;border-bottom:1px solid #1b2836">
+            <span class="mono">${esc(f.path)}${f.line ? ":" + f.line : ""} — ${esc(f.note)}</span>
+            <span class="badge risk-${f.severity}">${f.severity}</span>
+          </div>`,
+            )
+            .join("");
+      }
+
+      async function loadHistory() {
+        const r = await window.rootwatch.deviceHistory();
+        const el = $("history");
+        if (!r?.ok || !r.items?.length) {
+          el.textContent = "no recorded sightings yet — history accumulates as the app runs";
+          return;
+        }
+        el.innerHTML = r.items
+          .slice(0, 50)
+          .map(
+            (s) => `<div class="row" style="padding:3px 0;border-bottom:1px solid #1b2836">
+          <span>${esc(s.name ?? "unknown")} <span class="mono muted">${esc(s.ports ?? "")}</span></span>
+          <span class="muted">first seen ${s.firstSeen ? new Date(s.firstSeen).toLocaleString() : "—"} · last ${s.lastSeen ? new Date(s.lastSeen).toLocaleTimeString() : "—"}</span>
+        </div>`,
+          )
+          .join("");
+      }
+
+      async function stopPid(btn) {
+        const pid = Number(btn.dataset.stop);
+        const isSystem = btn.dataset.cls === "system";
+        const active = Number(btn.dataset.active) || 0;
+        const unit = btn.dataset.unit || "";
+        const usage =
+          active > 0
+            ? `\n${active} active connection(s) — stopping drops them.`
+            : "\nNothing is connected to it right now.";
+        const msg = isSystem
+          ? `Stop ${btn.dataset.name} (pid ${pid})?${usage}\n\nThis is a SYSTEM service — stopping it may break things.`
+          : `Stop ${btn.dataset.name} (pid ${pid})?${usage}`;
+        if (!confirm(msg)) return;
+        // Boot-survival evidence: a plain stop only lasts until restart, so
+        // offer disable when a unit backs the service. System units come
+        // back elevated_required with the exact sudo command either way.
+        const disable =
+          Boolean(unit) &&
+          btn.dataset.persist === "1" &&
+          confirm(
+            `${btn.dataset.name} returns on boot via ${unit}.\n\nAlso disable it so it stays off after reboot?`,
+          );
+        btn.disabled = true;
+        const r = await window.rootwatch.deviceStop(pid, isSystem, disable);
+        if (r.status === "stopped" || r.status === "escalated") toast(r.message || "stopped");
+        else
+          toast((r.message || "refused") + (r.suggestedFix ? `\n→ ${r.suggestedFix}` : ""), true);
+        loadListeners();
+      }
+
+      $("rescan").onclick = () => {
+        loadListeners();
+        loadPerformance(true);
+      };
+      loadStatus();
+      loadChecks();
+      loadListeners();
+      loadHistory();
+      loadPerformance();
+    </script>
+  </body>
+</html>

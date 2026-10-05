@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=RootWatch
+Comment=The dev security control panel
+Exec=rootwatch
+Icon=dev.rootwatch.RootWatch
+Terminal=false
+Categories=Utility;Security;Network;
+Keywords=security;monitoring;vulnerabilities;scan;
+StartupWMClass=rootwatch

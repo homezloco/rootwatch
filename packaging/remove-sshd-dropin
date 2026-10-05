@@ -1,0 +1,86 @@
+#!/bin/bash
+# remove-sshd-dropin — RootWatch sshd drop-in directive remover.
+#
+# Installed root:root mode 0750 at /opt/rootwatch/libexec/remove-sshd-dropin.
+# Invoked by rootwatch-remediate (already root) as:
+#   bash /opt/rootwatch/libexec/remove-sshd-dropin <Directive>
+#
+# Removes <Directive> lines written by write-sshd-dropin from BOTH drop-in
+# names this tool has used — the current
+#   /etc/ssh/sshd_config.d/00-rootwatch.conf
+# and the legacy
+#   /etc/ssh/sshd_config.d/99-rootwatch.conf
+# — preserving other managed directives, deletes each file when nothing
+# managed remains, then validates with `sshd -t` — restoring the previous
+# files on failure so rollback can never lock out SSH.
+set -euo pipefail
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+readonly DROPIN_DIR="/etc/ssh/sshd_config.d"
+readonly DROPINS=("${DROPIN_DIR}/00-rootwatch.conf" "${DROPIN_DIR}/99-rootwatch.conf")
+
+refuse() {
+  echo "remove-sshd-dropin: refusing: $*" >&2
+  exit 2
+}
+
+[[ $EUID -eq 0 ]] || refuse "must run as root"
+[[ $# -eq 1 ]] || refuse "usage: remove-sshd-dropin <Directive>"
+
+directive="$1"
+case "$directive" in
+  PermitRootLogin|PasswordAuthentication) ;;
+  *) refuse "directive not allowed: $directive" ;;
+esac
+
+targets=()
+backups=()
+temps=()
+# Temp names never match *.conf (invisible to sshd's Include), but clean up
+# anyway so a failed run can't litter the drop-in dir.
+cleanup() {
+  if ((${#temps[@]})); then
+    rm -f "${temps[@]}"
+  fi
+}
+trap cleanup EXIT
+for f in "${DROPINS[@]}"; do
+  [[ -f "$f" ]] || continue
+
+  # Snapshot for restore-on-failure.
+  bak="$(mktemp "${DROPIN_DIR}/.rootwatch-bak.XXXXXX")"
+  cp -a "$f" "$bak"
+
+  tmp="$(mktemp "${DROPIN_DIR}/.rootwatch-new.XXXXXX")"
+  temps+=("$tmp")
+
+  # Keep everything except the directive being rolled back.
+  grep -Ev "^[[:space:]]*${directive}[[:space:]]" "$f" > "$tmp" || true
+  chmod 0644 "$tmp"
+  mv "$tmp" "$f"
+
+  # Only managed comment headers left (or empty file) → remove the file.
+  if ! grep -qEv '^[[:space:]]*(#|$)' "$f"; then
+    rm -f "$f"
+  fi
+
+  targets+=("$f")
+  backups+=("$bak")
+done
+
+if [[ ${#targets[@]} -eq 0 ]]; then
+  echo "remove-sshd-dropin: no drop-in present, nothing to do"
+  exit 0
+fi
+
+if ! out="$(sshd -t 2>&1)"; then
+  for i in "${!targets[@]}"; do
+    mv -f "${backups[$i]}" "${targets[$i]}"
+  done
+  refuse "sshd -t rejected config after removal; previous drop-ins restored: $out"
+fi
+
+rm -f "${backups[@]}"
+echo "remove-sshd-dropin: removed '${directive}' from ${targets[*]} (sshd -t passed)"

@@ -1,0 +1,10 @@
+# RootWatch privileged remediation executor.
+#
+# Install: sudo install -o root -g root -m 0440 packaging/sudoers.d/rootwatch /etc/sudoers.d/rootwatch
+# Validate BEFORE installing (and after any edit): visudo -cf /etc/sudoers.d/rootwatch
+#
+# The RootWatch service user may run ONLY the root-owned remediation helper,
+# with no password (the app calls `sudo -n`, which fails fast if this entry
+# is missing). All argument validation happens inside the helper itself.
+# 'rootwatch' is the assumed service account — adjust to your deployment user.
+rootwatch ALL=(root) NOPASSWD: /opt/rootwatch/libexec/rootwatch-remediate

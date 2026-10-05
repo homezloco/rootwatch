@@ -1,0 +1,38 @@
+# RootWatch
+
+> Host security control panel for developers. RootWatch inventories the
+> listening services on a machine, scores their exposure (loopback / LAN /
+> tailnet / public), shows live usage evidence (connections, idle time,
+> boot persistence), and offers approval-gated remediation — plus a
+> performance surface ranking idle services by real memory/CPU cost.
+> Surfaces: web dashboard, versioned REST API, MCP server (22 tools),
+> CLI (`rootwatch`/`rw`), and an Electron desktop app.
+
+## Product
+
+- [RootWatch](https://rootwatch.dev/) — landing, quickstart, pricing
+- [App](https://app.rootwatch.dev/) — the hosted control plane (sign up, orgs, API tokens)
+- [Desktop agent installer](https://rootwatch.dev/agent/install.sh) — zero-dependency Node agent, `curl | bash`
+- [Desktop releases](https://github.com/homezloco/rootwatch-releases/releases) — AppImage / .deb / .snap binaries
+- [Client source](https://github.com/homezloco/rootwatch) — agent, CLI, desktop app, self-host installer (Apache-2.0; the control plane is closed-source)
+
+## Key features
+
+- Listener inventory: which processes bind which ports, identified via a layered evidence waterfall (systemd → container → package → probe), with `identifiedBy` honesty markers
+- Usage evidence: established connections, egress, idle time, "returns on boot" persistence, duplicate stacks (e.g. deb + snap cups)
+- Guarded stop/disable: PID↔socket re-verification before signalling, elevated stops via allowlisted sudo helper — suggestions shown, never silently executed
+- Performance reclaim: idle services ranked by resident MB, orphans, boot blame/phases, disk reclaimables, PSI pressure, thermal throttling (history vs live delta)
+- Security: host rule engine → findings → proposal catalog; SSH/firewall changes require explicit approval + remote confirmation; vuln scanning (Trivy), CISA KEV threat intel, compliance reports
+- Multi-tenant orgs with `rw_` API tokens (read/scan/write/admin scopes); Stripe-billed plans: Free / Pro $20/mo / Enterprise $249/mo / managed service via Canadian Web Consulting
+
+## Pricing
+
+- Free — 1 host, 2 seats, 3 API tokens, no hosted AI
+- Pro — $20/mo — 10 seats, 10 tokens, hosted AI analysis
+- Enterprise — $249/mo — unlimited seats/tokens, priority support
+- Managed — monthly retainer via https://www.canweb.net (they run it for you)
+
+## Notes for agents
+
+- The MCP endpoint (`/mcp`, Streamable HTTP, Bearer `rw_` token) is the machine-first surface: 22 tools for posture, scans, listeners, remediation proposals, compliance, enrollment.
+- All host-derived data is real — the platform's explicit contract is "no fabricated metrics"; containers report capabilities honestly as N/A.

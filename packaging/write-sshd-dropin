@@ -1,0 +1,124 @@
+#!/bin/bash
+# write-sshd-dropin — RootWatch sshd drop-in writer.
+#
+# Installed root:root mode 0750 at /opt/rootwatch/libexec/write-sshd-dropin.
+# Invoked by rootwatch-remediate (already root) as:
+#   bash /opt/rootwatch/libexec/write-sshd-dropin <Directive> <value>
+#
+# Sets a single whitelisted sshd directive in
+#   /etc/ssh/sshd_config.d/00-rootwatch.conf
+# preserving other directives previously written by this helper, then
+# verifies the EFFECTIVE value with `sshd -T`. A passing `sshd -t` only
+# proves syntax — OpenSSH takes the FIRST obtained value, and drop-ins are
+# included in lexical order, so a later name (e.g. a 99- drop-in losing to
+# vendor 50-cloud-init.conf) can make a "successful" write a no-op. The 00-
+# name sorts before common vendor drop-ins; if sshd -T does not report the
+# written value as effective, the previous state is restored and the helper
+# fails nonzero — an ineffective hardening is never reported as done.
+#
+# Older installs wrote 99-rootwatch.conf: its managed directives are
+# migrated into the new file and the stale file is removed once the new
+# config verifies.
+#
+# NOTE: the drop-in only takes effect if sshd_config contains
+#   Include /etc/ssh/sshd_config.d/*.conf
+# near the top (first-obtained-value wins in OpenSSH).
+set -euo pipefail
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+readonly DROPIN_DIR="/etc/ssh/sshd_config.d"
+readonly DROPIN="${DROPIN_DIR}/00-rootwatch.conf"
+readonly LEGACY_DROPIN="${DROPIN_DIR}/99-rootwatch.conf"
+
+refuse() {
+  echo "write-sshd-dropin: refusing: $*" >&2
+  exit 2
+}
+
+[[ $EUID -eq 0 ]] || refuse "must run as root"
+[[ $# -eq 2 ]] || refuse "usage: write-sshd-dropin <Directive> <value>"
+
+directive="$1"
+value="$2"
+
+# Whitelisted directive set — nothing else may be written.
+case "$directive" in
+  PermitRootLogin|PasswordAuthentication) ;;
+  *) refuse "directive not allowed: $directive" ;;
+esac
+
+# Whitelisted values per directive — arbitrary strings never reach the file.
+case "$directive:$value" in
+  "PermitRootLogin:no"|"PermitRootLogin:prohibit-password"|"PermitRootLogin:without-password"|"PermitRootLogin:yes" \
+  |"PasswordAuthentication:no"|"PasswordAuthentication:yes") ;;
+  *) refuse "value not allowed: $directive $value" ;;
+esac
+
+mkdir -p "$DROPIN_DIR"
+
+# Build the new drop-in in a temp file in the same directory. The temp name
+# does NOT match *.conf, so it is invisible to sshd's Include glob until mv.
+tmp="$(mktemp "${DROPIN_DIR}/.rootwatch-new.XXXXXX")"
+trap 'rm -f "$tmp"' EXIT
+{
+  echo "# Managed by RootWatch — do not edit by hand."
+  echo "# Roll back from the app, or: rm ${DROPIN} && systemctl reload ssh"
+  # Keep previously-managed directives other than the one being replaced —
+  # the current drop-in first, then the legacy 99- name so old installs
+  # migrate. First occurrence per directive wins (awk dedupe); the 00- name
+  # then wins first-match against any same-directive leftovers elsewhere.
+  for f in "$DROPIN" "$LEGACY_DROPIN"; do
+    [[ -f "$f" ]] || continue
+    grep -Ev '^[[:space:]]*#|^[[:space:]]*$' "$f" \
+      | grep -Ev "^[[:space:]]*${directive}[[:space:]]" || true
+  done | awk '{ k = tolower($1); if (!seen[k]++) print }'
+  printf '%s %s\n' "$directive" "$value"
+} > "$tmp"
+chmod 0644 "$tmp"
+
+# Snapshot the current drop-in (if any) so a failed verification restores
+# it. The legacy file is left untouched until verification passes — a
+# failure therefore restores the exact prior state.
+backup=""
+if [[ -f "$DROPIN" ]]; then
+  backup="$(mktemp "${DROPIN_DIR}/.rootwatch-bak.XXXXXX")"
+  cp -a "$DROPIN" "$backup"
+fi
+
+restore() {
+  if [[ -n "$backup" ]]; then
+    mv -f "$backup" "$DROPIN"
+  else
+    rm -f "$DROPIN"
+  fi
+}
+
+mv "$tmp" "$DROPIN"
+
+if ! out="$(sshd -t 2>&1)"; then
+  restore
+  refuse "sshd -t rejected the new drop-in; previous config restored: $out"
+fi
+
+# Verify the directive is the EFFECTIVE value — sshd -T parses the full
+# config with first-match semantics, so it catches an earlier vendor
+# drop-in silently overriding us. -T evaluates config fresh; no reload is
+# needed for this check.
+if ! tout="$(sshd -T 2>&1)"; then
+  restore
+  refuse "sshd -T could not evaluate the config; previous config restored: $tout"
+fi
+effective="$(printf '%s\n' "$tout" | awk -v d="${directive,,}" 'tolower($1) == d { print tolower($2); exit }')"
+if [[ "$effective" != "${value,,}" ]]; then
+  restore
+  refuse "drop-in written but '${directive} ${value}' is not effective (sshd -T reports '${effective:-<unset>}') — an earlier drop-in likely wins first-match; previous config restored"
+fi
+
+# Verified — retire the legacy 99- name so old installs clean up.
+if [[ -n "$backup" ]]; then
+  rm -f "$backup"
+fi
+rm -f "$LEGACY_DROPIN"
+echo "write-sshd-dropin: ${DROPIN} now sets '${directive} ${value}' (sshd -t + sshd -T effective check passed)"

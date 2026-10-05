@@ -1,0 +1,47 @@
+#!/bin/bash
+# fix-docker-daemon-json — RootWatch daemon.json hosts fixer.
+#
+# Installed root:root mode 0750 at
+# /opt/rootwatch/libexec/fix-docker-daemon-json. Invoked by
+# rootwatch-remediate (already root) with no arguments.
+#
+# Removes the "hosts" key from /etc/docker/daemon.json (which can re-add a
+# tcp:// listener independent of the unit's ExecStart). A timestamped
+# backup is written next to the file before modification. If the key or
+# file is absent this is a no-op.
+set -euo pipefail
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+readonly DAEMON_JSON="/etc/docker/daemon.json"
+
+refuse() {
+  echo "fix-docker-daemon-json: refusing: $*" >&2
+  exit 2
+}
+
+[[ $EUID -eq 0 ]] || refuse "must run as root"
+[[ $# -eq 0 ]] || refuse "usage: fix-docker-daemon-json (no arguments)"
+
+if [[ ! -f "$DAEMON_JSON" ]]; then
+  echo "fix-docker-daemon-json: no ${DAEMON_JSON}, nothing to do"
+  exit 0
+fi
+
+python3 - "$DAEMON_JSON" <<'PY'
+import json, shutil, sys, time
+path = sys.argv[1]
+with open(path) as f:
+    data = json.load(f)
+if "hosts" not in data:
+    print(f"fix-docker-daemon-json: no 'hosts' key in {path}, nothing to do")
+    sys.exit(0)
+backup = f"{path}.rootwatch-bak-{int(time.time())}"
+shutil.copy2(path, backup)
+del data["hosts"]
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+print(f"fix-docker-daemon-json: removed 'hosts' from {path} (backup {backup})")
+PY
