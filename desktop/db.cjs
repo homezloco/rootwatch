@@ -11,7 +11,9 @@
  * and the async surface leaves room for a real async driver later.
  *
  * Nothing here stores secrets — sightings are {pid, ports, name, risk} and
- * queued rows are report bodies already bound for the control plane.
+ * queued rows are report bodies already bound for the control plane. The
+ * vault table holds safeStorage-sealed ciphertext only (OS-keychain keyed):
+ * a DB dump exposes fingerprints + metadata, nothing usable as a secret.
  */
 
 const fs = require("node:fs");
@@ -81,6 +83,13 @@ function tryOpen() {
         queued_at TEXT NOT NULL,
         body      TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS vault (
+        fingerprint TEXT PRIMARY KEY,
+        sealed      TEXT NOT NULL,
+        label       TEXT,
+        provider    TEXT,
+        sealed_at   TEXT
+      );
     `);
     sqlite = s;
     backend = "sqlite";
@@ -109,7 +118,14 @@ function tryOpen() {
 // ---------------------------------------------------------------------------
 
 function openJsonl(file) {
-  const state = { file, sightings: new Map(), reports: new Map(), nextId: 1, appended: 0 };
+  const state = {
+    file,
+    sightings: new Map(),
+    reports: new Map(),
+    vault: new Map(),
+    nextId: 1,
+    appended: 0,
+  };
   let lines = 0;
   try {
     for (const line of fs.readFileSync(file, "utf8").split("\n")) {
@@ -145,6 +161,16 @@ function applyJsonlOp(state, op) {
     if (op.id >= state.nextId) state.nextId = op.id + 1;
   } else if (op?.op === "report-del" && Number.isInteger(op.id)) {
     state.reports.delete(op.id);
+  } else if (op?.op === "vault-put" && typeof op.fingerprint === "string") {
+    state.vault.set(op.fingerprint, {
+      fingerprint: op.fingerprint,
+      sealed: op.sealed ?? "",
+      label: op.label ?? null,
+      provider: op.provider ?? null,
+      sealedAt: op.sealedAt ?? null,
+    });
+  } else if (op?.op === "vault-del" && typeof op.fingerprint === "string") {
+    state.vault.delete(op.fingerprint);
   }
 }
 
@@ -159,6 +185,7 @@ function compactJsonl(state) {
   const lines = [];
   for (const s of state.sightings.values()) lines.push(JSON.stringify({ op: "sighting", ...s }));
   for (const r of state.reports.values()) lines.push(JSON.stringify({ op: "report", ...r }));
+  for (const v of state.vault.values()) lines.push(JSON.stringify({ op: "vault-put", ...v }));
   fs.writeFileSync(tmp, lines.length ? lines.join("\n") + "\n" : "");
   fs.renameSync(tmp, state.file);
   state.appended = 0;
@@ -333,6 +360,88 @@ async function queueSize() {
   return jsonl.reports.size;
 }
 
+// ---------------------------------------------------------------------------
+// Vault — safeStorage-sealed credential blobs keyed by fingerprint (the
+// keysha). sealed is opaque base64 ciphertext; plaintext is never stored.
+// ---------------------------------------------------------------------------
+
+async function vaultPut(entry) {
+  ensure();
+  if (!backend) throw new Error("no persistence backend available");
+  const row = {
+    fingerprint: String(entry?.fingerprint ?? ""),
+    sealed: String(entry?.sealed ?? ""),
+    label: entry?.label ?? null,
+    provider: entry?.provider ?? null,
+    sealedAt: new Date().toISOString(),
+  };
+  if (backend === "sqlite") {
+    sqlite
+      .prepare(
+        `INSERT INTO vault (fingerprint, sealed, label, provider, sealed_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(fingerprint) DO UPDATE SET
+           sealed    = excluded.sealed,
+           label     = excluded.label,
+           provider  = excluded.provider,
+           sealed_at = excluded.sealed_at`,
+      )
+      .run(row.fingerprint, row.sealed, row.label, row.provider, row.sealedAt);
+    return;
+  }
+  jsonl.vault.set(row.fingerprint, row);
+  appendJsonl(jsonl, { op: "vault-put", ...row });
+}
+
+async function vaultGet(fingerprint) {
+  ensure();
+  if (!backend) return null;
+  if (backend === "sqlite") {
+    return (
+      sqlite
+        .prepare(
+          `SELECT fingerprint, sealed, label, provider, sealed_at AS sealedAt
+           FROM vault WHERE fingerprint = ?`,
+        )
+        .get(String(fingerprint ?? "")) ?? null
+    );
+  }
+  return jsonl.vault.get(String(fingerprint ?? "")) ?? null;
+}
+
+async function vaultDelete(fingerprint) {
+  ensure();
+  if (!backend) return;
+  const fp = String(fingerprint ?? "");
+  if (backend === "sqlite") {
+    sqlite.prepare("DELETE FROM vault WHERE fingerprint = ?").run(fp);
+    return;
+  }
+  if (jsonl.vault.delete(fp)) appendJsonl(jsonl, { op: "vault-del", fingerprint: fp });
+}
+
+/** Vault metadata — the sealed blob never leaves this layer in a listing. */
+async function vaultList() {
+  ensure();
+  if (!backend) return [];
+  if (backend === "sqlite") {
+    return sqlite
+      .prepare(
+        `SELECT fingerprint, label, provider, sealed_at AS sealedAt
+         FROM vault ORDER BY sealed_at DESC`,
+      )
+      .all();
+  }
+  return [...jsonl.vault.values()]
+    .map(({ fingerprint, label, provider, sealedAt }) => ({
+      fingerprint,
+      label,
+      provider,
+      sealedAt,
+    }))
+    .sort((a, b) => String(b.sealedAt).localeCompare(String(a.sealedAt)));
+}
+
 async function close() {
   if (backend === "sqlite") {
     try {
@@ -354,5 +463,9 @@ module.exports = {
   queueReport,
   drainReports,
   queueSize,
+  vaultPut,
+  vaultGet,
+  vaultDelete,
+  vaultList,
   close,
 };

@@ -1,7 +1,7 @@
 {
   "name": "rootwatch-desktop",
   "productName": "RootWatch",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "private": true,
   "description": "RootWatch — the dev security control panel (Linux desktop client)",
   "homepage": "https://rootwatch.dev",

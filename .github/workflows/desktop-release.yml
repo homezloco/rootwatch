@@ -34,8 +34,12 @@ jobs:
       - name: Install desktop deps
         run: npm --prefix desktop install
 
+      # --publish never: electron-builder would otherwise try to publish
+      # itself on tag pushes (GH_TOKEN isn't available in this step, and it
+      # also attempts a snap-store upload). The gh release step below owns
+      # publishing to the public releases repo.
       - name: Build desktop packages (AppImage + deb + snap)
-        run: npm --prefix desktop run dist
+        run: npm --prefix desktop run dist -- --publish never
 
       - name: Publish release to rootwatch-releases
         env:

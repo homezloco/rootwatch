@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Terms of Service — RootWatch</title>
+    <meta
+      name="description"
+      content="RootWatch terms of service: accounts, authorized-use requirements for host monitoring, plans and Stripe billing, acceptable use, and warranty disclaimer."
+    />
+    <link rel="canonical" href="https://rootwatch.dev/terms/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="RootWatch" />
+    <meta property="og:title" content="Terms of Service — RootWatch" />
+    <meta
+      property="og:description"
+      content="Terms for using the RootWatch hosted control plane: accounts, authorized host monitoring, billing, acceptable use."
+    />
+    <meta property="og:url" content="https://rootwatch.dev/terms/" />
+    <meta property="og:image" content="https://rootwatch.dev/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Terms of Service — RootWatch" />
+    <meta
+      name="twitter:description"
+      content="Terms for using the RootWatch hosted control plane: accounts, authorized host monitoring, billing, acceptable use."
+    />
+    <meta name="twitter:image" content="https://rootwatch.dev/og.png" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>"
+    />
+    <style>
+      :root {
+        --bg: #09090b;
+        --panel: #101013;
+        --border: #27272a;
+        --text: #e4e4e7;
+        --dim: #a1a1aa;
+        --faint: #71717a;
+        --accent: #3b82f6;
+        --green: #34d399;
+        --amber: #fbbf24;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Inter,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      header {
+        border-bottom: 1px solid var(--border);
+        padding: 20px 0;
+        position: sticky;
+        top: 0;
+        background: rgba(9, 9, 11, 0.85);
+        backdrop-filter: blur(8px);
+        z-index: 10;
+      }
+      header .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .logo {
+        font: 700 18px var(--mono);
+        letter-spacing: 0.12em;
+        color: var(--text);
+        text-decoration: none;
+      }
+      .logo span {
+        color: var(--accent);
+      }
+      nav a {
+        color: var(--dim);
+        text-decoration: none;
+        margin-left: 24px;
+        font-size: 14px;
+      }
+      nav a:hover {
+        color: var(--text);
+      }
+      .btn {
+        display: inline-block;
+        padding: 10px 20px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+        border: 1px solid transparent;
+      }
+      .btn:hover {
+        background: #2563eb;
+      }
+      .pagehead {
+        padding: 72px 0 8px;
+      }
+      .pagehead h1 {
+        font-size: clamp(32px, 5.5vw, 48px);
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+        font-weight: 700;
+      }
+      .pagehead .sub {
+        margin-bottom: 0;
+        font-size: 17px;
+      }
+      .sub {
+        color: var(--dim);
+        margin-bottom: 32px;
+      }
+      section {
+        padding: 24px 0;
+      }
+      article h3 {
+        margin: 30px 0 8px;
+        font-size: 17px;
+      }
+      article p,
+      article li {
+        color: var(--dim);
+        font-size: 15px;
+      }
+      article p {
+        margin-bottom: 12px;
+      }
+      article ul {
+        padding-left: 22px;
+        margin: 8px 0 14px;
+      }
+      article li {
+        margin-bottom: 6px;
+      }
+      article a {
+        color: var(--accent);
+      }
+      article strong {
+        color: var(--text);
+      }
+      code {
+        font: 12.5px var(--mono);
+        color: var(--green);
+        background: #0c0c0f;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 2px 6px;
+      }
+      .legal-meta {
+        color: var(--faint);
+        font-size: 13px;
+        margin-top: 14px;
+      }
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 32px 0 48px;
+        color: var(--faint);
+        font-size: 13px;
+      }
+      footer .wrap {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      footer a {
+        color: var(--dim);
+        text-decoration: none;
+        margin-left: 16px;
+      }
+      footer a:hover {
+        color: var(--text);
+      }
+      @media (max-width: 640px) {
+        nav a {
+          margin-left: 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <a class="logo" href="/">ROOT<span>WATCH</span></a>
+        <nav>
+          <a href="/#start">Quickstart</a>
+          <a href="/pricing/">Pricing</a>
+          <a href="/docs/">Docs</a>
+          <a href="/status/">Status</a>
+          <a href="/contact/">Contact</a>
+          <a class="btn" href="https://app.rootwatch.dev">Dashboard</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="pagehead wrap">
+      <h1>Terms of Service</h1>
+      <p class="sub">
+        The rules for using the hosted RootWatch control plane at app.rootwatch.dev.
+      </p>
+      <p class="legal-meta">Last updated: October 7, 2026</p>
+    </div>
+
+    <section class="wrap">
+      <article>
+        <h3>1. The service</h3>
+        <p>
+          RootWatch is a host security control panel operated by
+          <a href="https://www.canweb.net">Canadian Web Consulting</a> ("we", "the operator"). It
+          provides a web dashboard, REST API, MCP server, CLI, desktop app, and fleet agent that
+          collect and analyze security telemetry from machines you enroll. By creating an account at
+          <a href="https://app.rootwatch.dev">app.rootwatch.dev</a> you accept these terms.
+        </p>
+
+        <h3>2. Accounts</h3>
+        <p>
+          Registration creates your user account and an organization. You are responsible for your
+          credentials and for the API tokens (<code>rw_…</code>) you mint — treat them like
+          passwords and revoke any that leak. You must be authorized to accept these terms on behalf
+          of the organization you register.
+        </p>
+
+        <h3>3. Authorized use only — this matters</h3>
+        <p>
+          RootWatch monitors and can act on real machines. You may enroll, scan, inventory, and
+          remediate <strong>only hosts you own or are explicitly authorized to administer</strong>.
+          Using the service to probe, scan, or act on third-party systems without authorization is
+          prohibited and may result in termination of your account.
+        </p>
+        <ul>
+          <li>Remediation actions are approval-gated; you approve each privileged change.</li>
+          <li>
+            Guarded actions (e.g. stopping a listener) re-verify targets before executing, but the
+            decision to run them is yours.
+          </li>
+        </ul>
+
+        <h3>4. Plans and billing</h3>
+        <p>
+          Plans and limits are described on the <a href="/pricing/">pricing page</a>: a free tier,
+          paid self-serve plans billed monthly in USD through Stripe, and a managed service invoiced
+          separately by Canadian Web Consulting. Paid subscriptions renew until cancelled and are
+          managed in the dashboard under Org Settings → Plan. Plan limits (seats, active API tokens,
+          hosted AI) are enforced by the service; exceeding a limit returns an upgrade prompt, not
+          silent failure.
+        </p>
+
+        <h3>5. Acceptable use</h3>
+        <ul>
+          <li>No unlawful activity, and no monitoring of systems you are not authorized for.</li>
+          <li>No attempting to access other organizations' data; all data is org-scoped.</li>
+          <li>
+            No abusive load, probing of the service itself, or interference with other tenants.
+          </li>
+          <li>
+            Findings, reports, and scores are informational — they are evidence collected from your
+            hosts, not a guarantee of security.
+          </li>
+        </ul>
+
+        <h3>6. Your data</h3>
+        <p>
+          Telemetry reported by your enrolled hosts belongs to your organization. We process it to
+          provide the service as described in the
+          <a href="/privacy/">Privacy Policy</a>. Credential values never leave your machines — only
+          fingerprints and redacted paths are reported.
+        </p>
+
+        <h3>7. Self-hosted deployments</h3>
+        <p>
+          If you point the agent, CLI, or desktop app at a control plane operated by someone else
+          (including yourself), your relationship for that telemetry is with that operator, and
+          these terms govern only your use of the hosted service.
+        </p>
+
+        <h3>8. Availability</h3>
+        <p>
+          We aim to keep the hosted control plane available but do not guarantee uninterrupted
+          service. The <a href="/status/">status page</a> describes how service health is reported.
+          A security monitoring tool is not a substitute for your own backups, alerting, and
+          operational judgment.
+        </p>
+
+        <h3>9. Warranty disclaimer and liability</h3>
+        <p>
+          The service is provided <strong>"as is" and "as available"</strong>, without warranties of
+          any kind, express or implied, including fitness for a particular purpose and
+          non-infringement. To the maximum extent permitted by law, the operator is not liable for
+          indirect, incidental, or consequential damages — including loss of data, revenue, or
+          security incidents — arising from use of the service. Where liability cannot be excluded,
+          it is limited to the amount you paid for the service in the twelve months before the claim
+          (or, for free-tier use, a nominal amount).
+        </p>
+
+        <h3>10. Termination</h3>
+        <p>
+          You can stop using the service at any time; paid plans can be cancelled in the dashboard.
+          We may suspend or terminate accounts that violate these terms — in particular the
+          authorized-use requirement in section 3.
+        </p>
+
+        <h3>11. Changes</h3>
+        <p>
+          We may update these terms as the product evolves; the "last updated" date reflects the
+          current version. Continued use after a change constitutes acceptance.
+        </p>
+
+        <h3>12. Contact</h3>
+        <p>
+          Questions about these terms: reach the operator via
+          <a href="https://www.canweb.net">Canadian Web Consulting</a> — see the
+          <a href="/contact/">contact page</a>.
+        </p>
+      </article>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        <span
+          >ROOTWATCH — a
+          <a href="https://www.canweb.net" style="margin-left: 0">Canadian Web Consulting</a>
+          service</span
+        >
+        <span>
+          <a href="/pricing/" style="margin-left: 0">Pricing</a>
+          <a href="/docs/">Docs</a>
+          <a href="/status/">Status</a>
+          <a href="/contact/">Contact</a>
+          <a href="/privacy/">Privacy</a>
+          <a href="/terms/">Terms</a>
+          <a href="https://app.rootwatch.dev">Dashboard</a>
+          <a href="https://www.canweb.net">canweb.net</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

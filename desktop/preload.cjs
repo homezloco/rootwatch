@@ -21,5 +21,12 @@ contextBridge.exposeInMainWorld("rootwatch", {
   deviceScan: (dir) => ipcRenderer.invoke("rw:device:scan", { dir }),
   deviceHistory: () => ipcRenderer.invoke("rw:device:history"),
   deviceQueue: () => ipcRenderer.invoke("rw:device:queue"),
+  deviceKeys: (force) => ipcRenderer.invoke("rw:device:keys", { force }),
+  deviceContainKey: (fingerprint, copy) =>
+    ipcRenderer.invoke("rw:device:keys:contain", { fingerprint, copy }),
+  deviceProbeKey: (fingerprint) => ipcRenderer.invoke("rw:device:keys:probe", { fingerprint }),
+  deviceProbeAllKeys: (provider) => ipcRenderer.invoke("rw:device:keys:probe-all", { provider }),
+  deviceMalware: () => ipcRenderer.invoke("rw:device:malware"),
+  deviceMalwareScan: () => ipcRenderer.invoke("rw:device:malware:scan"),
   openExternal: (url) => ipcRenderer.invoke("rw:open-external", url),
 });

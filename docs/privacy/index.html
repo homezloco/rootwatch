@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy — RootWatch</title>
+    <meta
+      name="description"
+      content="RootWatch privacy policy: what host security telemetry the service collects, how API tokens and credentials are handled, and how Stripe billing works."
+    />
+    <link rel="canonical" href="https://rootwatch.dev/privacy/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="RootWatch" />
+    <meta property="og:title" content="Privacy Policy — RootWatch" />
+    <meta
+      property="og:description"
+      content="What RootWatch collects — account data, host security telemetry you enroll, billing via Stripe — and what never leaves your machines."
+    />
+    <meta property="og:url" content="https://rootwatch.dev/privacy/" />
+    <meta property="og:image" content="https://rootwatch.dev/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Privacy Policy — RootWatch" />
+    <meta
+      name="twitter:description"
+      content="What RootWatch collects — account data, host security telemetry you enroll, billing via Stripe — and what never leaves your machines."
+    />
+    <meta name="twitter:image" content="https://rootwatch.dev/og.png" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>"
+    />
+    <style>
+      :root {
+        --bg: #09090b;
+        --panel: #101013;
+        --border: #27272a;
+        --text: #e4e4e7;
+        --dim: #a1a1aa;
+        --faint: #71717a;
+        --accent: #3b82f6;
+        --green: #34d399;
+        --amber: #fbbf24;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Inter,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      header {
+        border-bottom: 1px solid var(--border);
+        padding: 20px 0;
+        position: sticky;
+        top: 0;
+        background: rgba(9, 9, 11, 0.85);
+        backdrop-filter: blur(8px);
+        z-index: 10;
+      }
+      header .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .logo {
+        font: 700 18px var(--mono);
+        letter-spacing: 0.12em;
+        color: var(--text);
+        text-decoration: none;
+      }
+      .logo span {
+        color: var(--accent);
+      }
+      nav a {
+        color: var(--dim);
+        text-decoration: none;
+        margin-left: 24px;
+        font-size: 14px;
+      }
+      nav a:hover {
+        color: var(--text);
+      }
+      .btn {
+        display: inline-block;
+        padding: 10px 20px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+        border: 1px solid transparent;
+      }
+      .btn:hover {
+        background: #2563eb;
+      }
+      .pagehead {
+        padding: 72px 0 8px;
+      }
+      .pagehead h1 {
+        font-size: clamp(32px, 5.5vw, 48px);
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+        font-weight: 700;
+      }
+      .pagehead .sub {
+        margin-bottom: 0;
+        font-size: 17px;
+      }
+      .sub {
+        color: var(--dim);
+        margin-bottom: 32px;
+      }
+      section {
+        padding: 24px 0;
+      }
+      article h3 {
+        margin: 30px 0 8px;
+        font-size: 17px;
+      }
+      article p,
+      article li {
+        color: var(--dim);
+        font-size: 15px;
+      }
+      article p {
+        margin-bottom: 12px;
+      }
+      article ul {
+        padding-left: 22px;
+        margin: 8px 0 14px;
+      }
+      article li {
+        margin-bottom: 6px;
+      }
+      article a {
+        color: var(--accent);
+      }
+      article strong {
+        color: var(--text);
+      }
+      code {
+        font: 12.5px var(--mono);
+        color: var(--green);
+        background: #0c0c0f;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 2px 6px;
+      }
+      .legal-meta {
+        color: var(--faint);
+        font-size: 13px;
+        margin-top: 14px;
+      }
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 32px 0 48px;
+        color: var(--faint);
+        font-size: 13px;
+      }
+      footer .wrap {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      footer a {
+        color: var(--dim);
+        text-decoration: none;
+        margin-left: 16px;
+      }
+      footer a:hover {
+        color: var(--text);
+      }
+      @media (max-width: 640px) {
+        nav a {
+          margin-left: 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <a class="logo" href="/">ROOT<span>WATCH</span></a>
+        <nav>
+          <a href="/#start">Quickstart</a>
+          <a href="/pricing/">Pricing</a>
+          <a href="/docs/">Docs</a>
+          <a href="/status/">Status</a>
+          <a href="/contact/">Contact</a>
+          <a class="btn" href="https://app.rootwatch.dev">Dashboard</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="pagehead wrap">
+      <h1>Privacy Policy</h1>
+      <p class="sub">
+        RootWatch is a security product — it works by collecting telemetry from machines you enroll.
+        This page describes exactly what that is.
+      </p>
+      <p class="legal-meta">Last updated: October 7, 2026</p>
+    </div>
+
+    <section class="wrap">
+      <article>
+        <h3>Who we are</h3>
+        <p>
+          RootWatch is operated by
+          <a href="https://www.canweb.net">Canadian Web Consulting</a> ("we"). This policy covers
+          the hosted control plane at <a href="https://app.rootwatch.dev">app.rootwatch.dev</a> and
+          the rootwatch.dev website. If you self-host RootWatch, your own deployment's operator is
+          responsible for the data it collects — this policy does not apply to third-party
+          instances.
+        </p>
+
+        <h3>What we collect</h3>
+        <ul>
+          <li>
+            <strong>Account data</strong> — the username/email and password you register with.
+            Passwords are stored only as salted hashes (scrypt); we cannot read them.
+          </li>
+          <li>
+            <strong>Host security telemetry</strong> — when you enroll a machine via the agent, CLI,
+            or desktop app, it reports the data the product is built on: listening-port inventories
+            and the processes that own them, host metrics, security-check results and findings,
+            vulnerability data, network discovery results, and device posture. This telemetry is
+            scoped to your organization.
+          </li>
+          <li>
+            <strong>Credential inventory metadata</strong> — the credential scanner reports a sha256
+            fingerprint, the last four characters, and a redacted path for each key it finds.
+            <strong>Secret values never leave your machine.</strong>
+          </li>
+          <li>
+            <strong>API tokens</strong> — <code>rw_…</code> tokens are shown once at creation and
+            stored only as hashes.
+          </li>
+          <li>
+            <strong>Session cookie</strong> — the dashboard uses one session cookie to keep you
+            signed in. We do not run advertising or third-party analytics trackers.
+          </li>
+        </ul>
+
+        <h3>Billing</h3>
+        <p>
+          Paid plans are processed by <strong>Stripe</strong>. Your card details go to Stripe's
+          checkout directly — RootWatch never sees or stores card numbers. Stripe's own privacy
+          policy governs the data they process.
+        </p>
+
+        <h3>AI features</h3>
+        <p>
+          When you use hosted AI analysis (paid plans) or configure your own provider key (BYOK —
+          OpenAI, Gemini, OpenRouter, DeepSeek), the prompts and context needed for the analysis are
+          sent to that AI provider under their terms. AI provider keys you configure are stored by
+          the service so it can make requests on your behalf.
+        </p>
+
+        <h3>How we use the data</h3>
+        <ul>
+          <li>To operate the service: dashboards, findings, reports, alerts, and the API.</li>
+          <li>To enforce plan limits (seats, active API tokens, hosted AI access).</li>
+          <li>To secure the service: audit logging, abuse prevention, incident response.</li>
+        </ul>
+        <p>
+          We do not sell your data. We do not use your host telemetry to train models or for
+          advertising.
+        </p>
+
+        <h3>Sharing</h3>
+        <p>
+          We share data only with the service providers needed to run RootWatch — Stripe for
+          billing, our hosting provider for infrastructure, and the AI provider you select for AI
+          features — or where legally required. We do not share org telemetry with other customers:
+          all host data is org-scoped.
+        </p>
+
+        <h3>Retention</h3>
+        <p>
+          Account and org data is kept while your account is active. Security-event retention is
+          configurable per deployment (the default is 365 days). If you want your account and
+          associated data removed, contact us via
+          <a href="https://www.canweb.net">canweb.net</a>.
+        </p>
+
+        <h3>Your responsibilities</h3>
+        <p>
+          Only enroll machines you own or are authorized to administer. The telemetry described
+          above is collected from enrolled hosts — enrolling a machine you are not authorized to
+          monitor is a misuse of the service (see the
+          <a href="/terms/">Terms of Service</a>).
+        </p>
+
+        <h3>Self-hosting</h3>
+        <p>
+          RootWatch's agent, CLI, and desktop app can point at a control plane you operate. In that
+          arrangement your telemetry stays on infrastructure you control, and this policy applies
+          only to the extent you interact with the hosted service.
+        </p>
+
+        <h3>Changes</h3>
+        <p>
+          We may update this policy as the product evolves; the "last updated" date above reflects
+          the current version. Material changes will be noted on this page.
+        </p>
+
+        <h3>Contact</h3>
+        <p>
+          Questions or data requests: reach us through
+          <a href="https://www.canweb.net">Canadian Web Consulting</a> — see the
+          <a href="/contact/">contact page</a>.
+        </p>
+      </article>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        <span
+          >ROOTWATCH — a
+          <a href="https://www.canweb.net" style="margin-left: 0">Canadian Web Consulting</a>
+          service</span
+        >
+        <span>
+          <a href="/pricing/" style="margin-left: 0">Pricing</a>
+          <a href="/docs/">Docs</a>
+          <a href="/status/">Status</a>
+          <a href="/contact/">Contact</a>
+          <a href="/privacy/">Privacy</a>
+          <a href="/terms/">Terms</a>
+          <a href="https://app.rootwatch.dev">Dashboard</a>
+          <a href="https://www.canweb.net">canweb.net</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

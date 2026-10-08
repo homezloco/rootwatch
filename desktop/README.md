@@ -52,6 +52,24 @@ desktop action — no tray icon required.
 - **Project scan** — `scan.cjs` ports the CLI secrets+hygiene scanner;
   per-listener "Scan" audits the owning process's working directory.
   Findings carry kind+location only — secrets are never emitted.
+- **Credential posture** — the "Keys" card (`keys.cjs`) ports the host
+  credential scanner: provider-tagged rules over known credential
+  locations, `.env*` project files, same-uid `/proc` environments, and
+  shell history — deduped by sha256 fingerprint with last4 + `~/…` paths
+  only, values never leave the device. Per-key Probe runs an opt-in
+  provider liveness check (balance/scopes/credits where supported);
+  Contain seals the value into a `safeStorage`-backed vault in `db.cjs`
+  and stubs the plaintext out of its source files. Probe all runs a
+  bounded bulk pass, skipping non-bearer credentials (client secrets,
+  private keys, publishable keys) that can't produce an honest verdict.
+- **Malware** — the "Malware" card (`malware.cjs`, port of the server
+  engine): six heuristics (world-writable staging-dir executables,
+  deleted-binary processes, LD_PRELOAD injection, suspicious cron
+  entries, unowned setuid binaries, `dpkg -V` package-integrity drift)
+  plus a ClamAV sweep when installed. Platform-gated — /proc legs are
+  Linux-only, setuid/dpkg need the package manager. A cached background
+  pass runs every 6h (heavy legs included); "Scan now" forces a fresh
+  pass and can take a minute+.
 - **Stops** — same-user processes: SIGTERM → 3s → SIGKILL with a
   pid↔socket re-verification right before signalling (PID-reuse guard);
   refuses self/ancestors/pid ≤1/system units without confirm. Foreign-uid
@@ -71,9 +89,19 @@ desktop action — no tray icon required.
 device_ prints an `RW-XXXX-XXXX` code, an org admin approves it in the
 web app (Add device → enter code), and the app claims a write-scope
 token once. It then POSTs `report` snapshots to
-`/api/v1/devices/report` every 60s and executes claimed commands:
-`stop-listener` (through the same guarded `stopListener`) and `refresh`
-(immediate re-report); other command types ack `unsupported` honestly.
+`/api/v1/devices/report` every 60s (including a `report.keys` posture
+summary — fingerprints only) and executes claimed commands:
+`stop-listener` (through the same guarded `stopListener`), `refresh`
+(immediate re-report), `keys-contain` / `keys-probe` /
+`keys-probe-all` (device-local vault + probes — the server only learns
+the outcome status), and `malware-scan` (forced full pass — staging-dir
+executables, deleted-binary processes, LD_PRELOAD, cron persistence,
+unowned setuid, dpkg -V, plus ClamAV when installed; results ride back
+in the next report's commandResults); other command types ack
+`unsupported` honestly. `malware.cjs` also runs the pass on a 6h
+background cadence — the summary lands in `report.malware`, and
+newly-seen findings drain into `report.detections` as `malware.*` rules
+so the server records them as security events.
 hostId = `sha256("rootwatch-host:" + machine-id)` — the same derivation
 the server's fleet reporter uses, so an `install.sh` host and the
 desktop app converge on one device row. The raw machine-id never leaves

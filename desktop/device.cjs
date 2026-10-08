@@ -18,7 +18,6 @@ const collector = require("./collector.cjs");
 const db = require("./db.cjs");
 
 const REPORT_INTERVAL_MS = 60_000;
-const CLAIM_POLL_MS = 4_000;
 
 let cachedHostId = null;
 async function deviceHostId() {
@@ -153,7 +152,14 @@ async function queueOffline(body) {
  * Execute one claimed command and push its result for the next report.
  * Returns true when the command asked for an immediate re-report.
  */
-const KNOWN_COMMANDS = new Set(["refresh", "stop-listener"]);
+const KNOWN_COMMANDS = new Set([
+  "refresh",
+  "stop-listener",
+  "keys-contain",
+  "keys-probe",
+  "keys-probe-all",
+  "malware-scan",
+]);
 
 async function runCommand(c) {
   const result = { status: "unsupported", result: { reason: "unsupported on desktop reporter" } };
@@ -165,6 +171,56 @@ async function runCommand(c) {
     } else if (c.type === "refresh") {
       result.status = "done";
       result.result = undefined;
+    } else if (c.type === "keys-contain" || c.type === "keys-probe") {
+      // Credential actions — the fingerprint is a sha256 keysha, never a
+      // secret; validate strictly so a malformed command fails honestly
+      // instead of reaching the scanner (same as the stop-listener gate).
+      const payload = c.payload;
+      const fp = payload?.fingerprint;
+      const malformed =
+        typeof payload !== "object" ||
+        payload === null ||
+        typeof fp !== "string" ||
+        !/^[0-9a-f]{64}$/.test(fp) ||
+        (c.type === "keys-contain" &&
+          payload.copy !== undefined &&
+          typeof payload.copy !== "boolean");
+      if (malformed) {
+        result.status = "failed";
+        result.result = { error: `malformed ${c.type} payload` };
+      } else {
+        const keys = require("./keys.cjs");
+        const outcome =
+          c.type === "keys-contain"
+            ? await keys.containKey(fp, { copy: payload.copy === true })
+            : await keys.probeKey(fp);
+        result.status =
+          outcome?.status === "contained" || outcome?.status === "probed" ? "done" : "failed";
+        result.result = outcome;
+      }
+    } else if (c.type === "keys-probe-all") {
+      // Bulk liveness pass — optional {provider} filter; the payload is
+      // metadata only (no fingerprint, no secret).
+      const payload = c.payload;
+      const provider = payload?.provider;
+      const malformed =
+        payload !== undefined &&
+        (typeof payload !== "object" ||
+          payload === null ||
+          (provider !== undefined && typeof provider !== "string"));
+      if (malformed) {
+        result.status = "failed";
+        result.result = { error: "malformed keys-probe-all payload" };
+      } else {
+        const keys = require("./keys.cjs");
+        result.result = await keys.probeAll(typeof provider === "string" ? { provider } : {});
+        result.status = "done";
+      }
+    } else if (c.type === "malware-scan") {
+      // Forced full pass — bounded (~seconds heuristics, ≤180s ClamAV); the
+      // summary also lands in the next report's report.malware.
+      result.result = await require("./malware.cjs").scanNow();
+      result.status = "done";
     } else {
       // stop-listener — validate the payload fully before it can reach the
       // collector; a malformed command fails honestly instead of signalling.
@@ -216,7 +272,17 @@ async function drainQueue(baseUrl, token) {
 
 async function reportOnce(baseUrl, token, { allowRefresh = true } = {}) {
   const hostId = await deviceHostId();
+  const malware = require("./malware.cjs");
+  malware.refreshInBackground(); // stale-cache kickoff — never blocks the report
   const report = await collector.buildReport();
+  const malwareSummary = malware.getCachedSummary();
+  if (malwareSummary) report.malware = malwareSummary;
+  // Newly-seen malware findings ride the agent detections channel → they
+  // land as security_events rows via the existing recordDetections ingest.
+  const malwareDetections = malware.drainDetections();
+  if (malwareDetections.length) {
+    report.detections = [...(report.detections ?? []), ...malwareDetections];
+  }
   const body = {
     hostId,
     hostname: os.hostname(),

@@ -5,7 +5,7 @@
 > tailnet / public), shows live usage evidence (connections, idle time,
 > boot persistence), and offers approval-gated remediation — plus a
 > performance surface ranking idle services by real memory/CPU cost.
-> Surfaces: web dashboard, versioned REST API, MCP server (22 tools),
+> Surfaces: web dashboard, versioned REST API, MCP server (32 tools),
 > CLI (`rootwatch`/`rw`), and an Electron desktop app.
 
 ## Product
@@ -34,5 +34,5 @@
 
 ## Notes for agents
 
-- The MCP endpoint (`/mcp`, Streamable HTTP, Bearer `rw_` token) is the machine-first surface: 22 tools for posture, scans, listeners, remediation proposals, compliance, enrollment.
+- The MCP endpoint (`/mcp`, Streamable HTTP, Bearer `rw_` token) is the machine-first surface: 32 tools for posture, scans, listeners, credential inventory/probe/contain, remediation proposals, compliance, enrollment.
 - All host-derived data is real — the platform's explicit contract is "no fabricated metrics"; containers report capabilities honestly as N/A.

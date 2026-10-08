@@ -262,6 +262,39 @@
 
       <div class="card">
         <div class="row" style="justify-content: space-between">
+          <b>Keys <span class="muted" id="keysCount"></span></b>
+          <span>
+            <button id="keysProbeAll">Probe all</button>
+            <button id="keysRescan">↻ Rescan</button>
+          </span>
+        </div>
+        <div class="muted" style="font-size: 12px; margin-top: 4px">
+          credentials visible on this host — fingerprinted only, values never leave this device
+        </div>
+        <div id="keys" style="margin-top: 8px">
+          <span class="skel skel-block" style="width: 62%"></span>
+          <span class="skel skel-block" style="width: 44%; margin-top: 8px"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content: space-between">
+          <b>Malware <span class="muted" id="malwareCount"></span></b>
+          <span>
+            <button id="malwareScan">Scan now</button>
+          </span>
+        </div>
+        <div class="muted" style="font-size: 12px; margin-top: 4px">
+          heuristics + ClamAV signature sweep (when installed) — deleted binaries, LD_PRELOAD, cron
+          persistence, setuid, package integrity
+        </div>
+        <div id="malware" style="margin-top: 8px">
+          <span class="skel skel-block" style="width: 55%"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content: space-between">
           <b>Performance &amp; reclaim</b>
           <span class="muted" id="perfSummary"></span>
         </div>
@@ -667,6 +700,221 @@
           .join("");
       }
 
+      // ── Keys card — fingerprinted credential posture. Records carry
+      // provider/kind/label/last4 + flag chips only; the fingerprint is a
+      // sha256 keysha (safe to hold in the DOM, needed for contain/probe).
+      const KEY_FLAG_LABELS = {
+        committed: "committed",
+        worldReadable: "world-readable",
+        leakedToHistory: "in history",
+        served: "served",
+        gitignored: "gitignored",
+      };
+
+      function keyFlagChips(k) {
+        const chips = [];
+        for (const [flag, label] of Object.entries(KEY_FLAG_LABELS)) {
+          const v = k.flags?.[flag];
+          if (v === true) chips.push(`<span class="badge risk-high">${label}</span>`);
+          else if (typeof v === "string" && v)
+            chips.push(`<span class="badge risk-high" title="${esc(v)}">${label}</span>`);
+        }
+        return chips.join(" ");
+      }
+
+      async function loadKeys(force) {
+        const el = $("keys");
+        const r = await window.rootwatch.deviceKeys(force === true);
+        if (!r?.ok) {
+          el.innerHTML = `<span class="err">unavailable — ${esc(r?.error ?? "key scan failed")}</span>`;
+          return;
+        }
+        renderKeys(r.items ?? [], r.vault ?? []);
+      }
+
+      function renderKeys(items, vault) {
+        const sealed = new Set((vault ?? []).map((v) => v.fingerprint));
+        $("keysCount").textContent = items.length ? `(${items.length} found)` : "";
+        if (!items.length) {
+          $("keys").innerHTML =
+            '<div class="empty" style="padding:16px">No credentials found in scanned locations.</div>';
+          return;
+        }
+        $("keys").innerHTML = `<table>
+      <tr><th>Provider</th><th>Label</th><th>Key</th><th>Flags</th><th>Locations</th><th></th></tr>
+      ${items
+        .map(
+          (k) => `<tr>
+          <td><b>${esc(k.provider ?? "unknown")}</b><div class="detail">${esc(k.kind ?? "")}</div></td>
+          <td>${esc(k.label ?? "—")}</td>
+          <td class="mono">…${esc(k.last4 ?? "")}<div class="detail mono muted">${esc((k.fingerprint ?? "").slice(0, 12))}</div></td>
+          <td>${keyFlagChips(k)}${sealed.has(k.fingerprint) ? ' <span class="badge risk-info">contained</span>' : ""}</td>
+          <td class="mono muted">${(k.locations ?? [])
+            .slice(0, 3)
+            .map((l) => esc(l.path) + (l.line ? `:${l.line}` : ""))
+            .join(
+              "<br>",
+            )}${(k.locations ?? []).length > 3 ? `<br>+${k.locations.length - 3} more` : ""}</td>
+          <td style="white-space:nowrap">
+            <button data-probe="${k.fingerprint}">Probe</button>
+            <button class="danger" data-contain="${k.fingerprint}" data-label="${esc(k.label ?? k.provider ?? "key")}">Contain</button>
+            <div class="detail" data-proberesult="${k.fingerprint}"></div>
+          </td>
+        </tr>`,
+        )
+        .join("")}
+    </table>`;
+        $("keys")
+          .querySelectorAll("[data-probe]")
+          .forEach((b) => (b.onclick = () => probeKey(b)));
+        $("keys")
+          .querySelectorAll("[data-contain]")
+          .forEach((b) => (b.onclick = () => containKey(b)));
+      }
+
+      async function probeKey(btn) {
+        const fp = btn.dataset.probe;
+        const slot = document.querySelector(`[data-proberesult="${fp}"]`);
+        btn.disabled = true;
+        if (slot) slot.innerHTML = '<span class="muted">probing…</span>';
+        const r = await window.rootwatch.deviceProbeKey(fp);
+        btn.disabled = false;
+        if (!slot) return;
+        if (r?.status !== "probed") {
+          slot.innerHTML = `<span class="err">${esc(r?.message ?? "probe failed")}</span>`;
+        } else if (r.live === true) {
+          slot.innerHTML =
+            `<span class="ok">● live</span>` +
+            (r.balance ? ` — balance ${esc(r.balance)}` : "") +
+            (r.scopes ? ` — scopes: ${esc(r.scopes)}` : "");
+        } else if (r.live === false) {
+          slot.innerHTML = `<span class="err">dead / rejected</span>${r.detail ? ` <span class="muted">${esc(r.detail)}</span>` : ""}`;
+        } else {
+          slot.innerHTML = `<span class="muted">unknown — ${esc(r.detail ?? "not evaluable")}</span>`;
+        }
+      }
+
+      async function containKey(btn) {
+        const fp = btn.dataset.contain;
+        const label = btn.dataset.label || "this key";
+        if (
+          !confirm(
+            `Contain ${label}?\n\nThe secret is sealed into the OS keychain vault (ciphertext only — a dump exposes nothing usable).`,
+          )
+        )
+          return;
+        // copy=false → also strip the secret from its source file and leave
+        // a '# contained by rootwatch' stub. Whole-file credentials and
+        // process-env locations refuse honestly and seal a copy instead.
+        const copy = !confirm(
+          "Also remove the secret from its source file?\n\nOK — remove it (leave a stub)\nCancel — seal a copy only, file untouched",
+        );
+        btn.disabled = true;
+        const r = await window.rootwatch.deviceContainKey(fp, copy);
+        btn.disabled = false;
+        if (r?.status === "contained") toast(r.message || "contained");
+        else toast(r?.message || "contain refused/failed", true);
+        loadKeys(true);
+      }
+
+      $("keysRescan").onclick = () => loadKeys(true);
+
+      async function loadMalware() {
+        const el = $("malware");
+        const r = await window.rootwatch.deviceMalware();
+        if (!r?.ok) {
+          el.innerHTML = `<span class="err">unavailable — ${esc(r?.error ?? "malware scan failed")}</span>`;
+          return;
+        }
+        renderMalware(r.summary);
+      }
+
+      function renderMalware(m) {
+        $("malwareCount").textContent = m
+          ? `(${m.total} indicator${m.total === 1 ? "" : "s"})`
+          : "";
+        if (!m) {
+          $("malware").innerHTML =
+            '<div class="empty" style="padding:16px">No scan yet — the first pass runs in the background.</div>';
+          return;
+        }
+        const meta =
+          `${esc(m.scanner)} · scanned ${new Date(m.scannedAt).toLocaleString()}` +
+          (m.filesScanned != null ? ` · ${m.filesScanned} files` : "") +
+          (m.clamavAvailable === false ? " · heuristics only — install ClamAV for signatures" : "");
+        if (!m.findings?.length) {
+          $("malware").innerHTML =
+            `<div class="empty" style="padding:16px">No indicators. <span class="muted">${meta}</span></div>`;
+          return;
+        }
+        $("malware").innerHTML = `<table>
+      <tr><th>Severity</th><th>Finding</th><th>Evidence</th></tr>
+      ${m.findings
+        .map(
+          (f) => `<tr>
+          <td><span class="badge risk-${esc(f.severity)}">${esc(f.severity)}</span></td>
+          <td><b>${esc(f.name)}</b></td>
+          <td class="mono muted">${esc(f.evidence)}</td>
+        </tr>`,
+        )
+        .join("")}
+    </table><div class="detail muted" style="margin-top:6px">${meta}</div>`;
+      }
+
+      $("malwareScan").onclick = async () => {
+        const btn = $("malwareScan");
+        btn.disabled = true;
+        btn.textContent = "Scanning…";
+        const r = await window.rootwatch.deviceMalwareScan();
+        btn.disabled = false;
+        btn.textContent = "Scan now";
+        if (!r?.ok) {
+          toast(r?.error ?? "malware scan failed", true);
+          return;
+        }
+        renderMalware(r.summary);
+        toast(r.summary?.total ? `${r.summary.total} indicator(s) found` : "no indicators found");
+      };
+
+      $("keysProbeAll").onclick = async () => {
+        const btn = $("keysProbeAll");
+        btn.disabled = true;
+        btn.textContent = "Probing…";
+        const r = await window.rootwatch.deviceProbeAllKeys();
+        btn.disabled = false;
+        btn.textContent = "Probe all";
+        if (!r || typeof r.probed !== "number") {
+          toast(r?.error ?? "probe-all failed", true);
+          return;
+        }
+        const skipped = r.skipped ?? {};
+        const skipNote = [
+          skipped.noAdapter ? `${skipped.noAdapter} no adapter` : "",
+          skipped.notBearer ? `${skipped.notBearer} not bearer` : "",
+        ].filter(Boolean);
+        toast(
+          `${r.probed} probed — ${r.live} live, ${r.dead} dead, ${r.unknown} unknown` +
+            (skipNote.length ? ` (${skipNote.join(", ")} skipped)` : ""),
+        );
+        // Fill each row's verdict slot so the table shows the bulk result.
+        for (const res of r.results ?? []) {
+          const slot = document.querySelector(`[data-proberesult="${res.fingerprint}"]`);
+          if (!slot) continue;
+          if (res.status !== "probed") {
+            slot.innerHTML = `<span class="err">${esc(res.message ?? "probe failed")}</span>`;
+          } else if (res.live === true) {
+            slot.innerHTML =
+              `<span class="ok">● live</span>` +
+              (res.balance ? ` — balance ${esc(res.balance)}` : "") +
+              (res.scopes ? ` — scopes: ${esc(res.scopes)}` : "");
+          } else if (res.live === false) {
+            slot.innerHTML = `<span class="err">dead / rejected</span>${res.detail ? ` <span class="muted">${esc(res.detail)}</span>` : ""}`;
+          } else {
+            slot.innerHTML = `<span class="muted">unknown — ${esc(res.detail ?? "not evaluable")}</span>`;
+          }
+        }
+      };
+
       async function stopPid(btn) {
         const pid = Number(btn.dataset.stop);
         const isSystem = btn.dataset.cls === "system";
@@ -704,6 +952,8 @@
       loadStatus();
       loadChecks();
       loadListeners();
+      loadKeys();
+      loadMalware();
       loadHistory();
       loadPerformance();
     </script>

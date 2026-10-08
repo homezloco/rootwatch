@@ -23,6 +23,9 @@
 # Knobs (env): SERVER_VERSION REPO_URL REPO_REF INSTALL_DIR SERVICE_USER BIND_ADDR
 #              APP_PORT PG_PORT SKIP_HELPERS=1 TAILSCALE_SERVE=1
 #              CONTROL_PLANE_URL CONTROL_PLANE_TOKEN
+#              INSTALL_CLAMAV=1|0  — signature engine for malware scans.
+#              Unset + interactive terminal → prompted (default yes);
+#              unset + non-interactive → skipped (heuristics-only scans)
 #
 # Production sessions use Secure cookies — the UI is only usable over HTTPS
 # or from a browser on the same machine (localhost is a secure context).
@@ -69,6 +72,50 @@ docker info >/dev/null 2>&1 || die "docker daemon not running (systemctl start d
 ss -tln | grep -q ":${PG_PORT} " && ! docker ps --format '{{.Names}}' | grep -qx "$PG_CONTAINER" \
   && die "port ${PG_PORT} already in use — set PG_PORT=<free port>"
 command -v sshd >/dev/null 2>&1 && SSHD_OK=1 || SSHD_OK=0
+
+# ---- optional ClamAV signature engine ----------------------------------------
+# Malware scans always run the heuristics legs; a local ClamAV turns the pass
+# into a real signature sweep of the staging dirs. Recommended — offer to
+# install it here. Non-interactive installs take INSTALL_CLAMAV=1|0 and
+# default to skipping; the dashboard honestly reports "heuristics only".
+CLAMAV_STATUS="heuristics only (no ClamAV)"
+if command -v clamdscan >/dev/null 2>&1 || command -v clamscan >/dev/null 2>&1; then
+  CLAMAV_STATUS="ClamAV already installed — signature scanning enabled"
+elif [ "${INSTALL_CLAMAV:-}" = "0" ]; then
+  :
+else
+  install_clamav="${INSTALL_CLAMAV:-}"
+  if [ -z "$install_clamav" ] && [ -e /dev/tty ]; then
+    printf '\033[1m==> Install ClamAV? It enables malware signature scanning (recommended). [Y/n] \033[0m'
+    answer=""
+    read -r answer < /dev/tty || answer="y"
+    case "$answer" in n|N|no|NO) install_clamav=0 ;; *) install_clamav=1 ;; esac
+  fi
+  if [ "$install_clamav" = "1" ]; then
+    if command -v apt-get >/dev/null 2>&1; then
+      say "installing ClamAV (clamav-daemon — signature updates via freshclam)"
+      DEBIAN_FRONTEND=noninteractive apt-get update -qq \
+        && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq clamav-daemon \
+        || echo "WARN: clamav install failed — malware scans stay heuristics-only"
+    elif command -v dnf >/dev/null 2>&1; then
+      say "installing ClamAV (dnf)"
+      dnf install -y clamav clamav-update clamd \
+        || echo "WARN: clamav install failed — malware scans stay heuristics-only"
+      # freshclam config ships with a FRESHCLAM_DELAY/"Example" guard on Fedora
+      sed -i 's/^Example/#Example/' /etc/freshclam.conf 2>/dev/null || true
+      systemctl enable --now clamav-freshclam >/dev/null 2>&1 || true
+    else
+      echo "WARN: no apt/dnf — install clamav manually for signature scanning"
+    fi
+    if command -v clamdscan >/dev/null 2>&1 || command -v clamscan >/dev/null 2>&1; then
+      # clamd answers scans as soon as freshclam's first DB lands; until
+      # then runs degrade to heuristics honestly.
+      systemctl enable --now clamav-daemon >/dev/null 2>&1 \
+        || systemctl enable --now clamd >/dev/null 2>&1 || true
+      CLAMAV_STATUS="ClamAV installed — signature scanning enabled (first DB download may take a minute)"
+    fi
+  fi
+fi
 
 # ---- service user -----------------------------------------------------------
 if ! id "$SERVICE_USER" >/dev/null 2>&1; then
@@ -285,6 +332,7 @@ cat <<EOF
 
 $(printf '\033[32m')RootWatch is up: http://${BIND_ADDR}:${APP_PORT}$(printf '\033[0m')
   admin / ${ADMIN_PASSWORD}   (also in ${ENV_FILE} — rotate after first login)
+  malware scanning: ${CLAMAV_STATUS}
   logs: journalctl -u rootwatch -f
 $( [ "$BIND_ADDR" != "127.0.0.1" ] && echo "  bound to ${BIND_ADDR} — reachable only from that interface" )
 $( [ -n "$SERVE_URL" ] && echo "  tailnet HTTPS: ${SERVE_URL}" )

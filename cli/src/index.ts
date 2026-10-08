@@ -11,6 +11,7 @@ import { registerStatus } from "./commands/status.js";
 import { registerEvents } from "./commands/events.js";
 import { registerVulns } from "./commands/vulns.js";
 import { registerListeners } from "./commands/listeners.js";
+import { registerKeys } from "./commands/keys.js";
 import { registerRemediations } from "./commands/remediations.js";
 import { registerScan } from "./commands/scan.js";
 import { registerOrg } from "./commands/tokens.js";
@@ -33,6 +34,7 @@ export function buildProgram(): Command {
   registerEvents(program);
   registerVulns(program);
   registerListeners(program);
+  registerKeys(program);
   registerRemediations(program);
   registerScan(program);
   registerOrg(program);

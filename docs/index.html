@@ -132,6 +132,8 @@
       .logo {
         font: 700 18px var(--mono);
         letter-spacing: 0.12em;
+        color: var(--text);
+        text-decoration: none;
       }
       .logo span {
         color: var(--accent);
@@ -381,14 +383,15 @@
   <body>
     <header>
       <div class="wrap">
-        <div class="logo">ROOT<span>WATCH</span></div>
+        <a class="logo" href="/">ROOT<span>WATCH</span></a>
         <nav>
           <a href="#start">Quickstart</a>
           <a href="#cli">CLI</a>
           <a href="#mcp">MCP</a>
           <a href="#api">API</a>
-          <a href="#pricing">Pricing</a>
+          <a href="/pricing/">Pricing</a>
           <a href="#managed">Managed</a>
+          <a href="/docs/">Docs</a>
           <a class="btn" href="https://app.rootwatch.dev">Dashboard</a>
         </nav>
       </div>
@@ -636,6 +639,12 @@
           service</span
         >
         <span>
+          <a href="/pricing/" style="margin-left: 0">Pricing</a>
+          <a href="/docs/">Docs</a>
+          <a href="/status/">Status</a>
+          <a href="/contact/">Contact</a>
+          <a href="/privacy/">Privacy</a>
+          <a href="/terms/">Terms</a>
           <a href="https://app.rootwatch.dev">Dashboard</a>
           <a href="https://www.canweb.net">canweb.net</a>
         </span>

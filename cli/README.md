@@ -46,9 +46,16 @@ rootwatch listeners ls              listener inventory (alias: ports)
 rootwatch listeners stop <pid>      stop a listener (guarded; --yes/--force)
 rootwatch hosts                     host inventory
 rootwatch scan remote               run server-side security checks now
+rootwatch scan remote --type malware  run the host malware pass (heuristics + ClamAV when installed)
 rootwatch scan [path]               scan a local project (see below)
 rootwatch mcp                       run an MCP stdio server over /api/v1
 rootwatch org tokens list|create|revoke   (requires admin scope)
+rootwatch keys                      credential inventory on the host (fingerprints only)
+rootwatch keys scan                 rescan now, bypassing the 60s cache (scan scope)
+rootwatch keys probe <fingerprint>  liveness check against the provider (write scope)
+rootwatch keys probe-all            bulk liveness pass; skips non-bearer creds (write scope)
+rootwatch keys contain <fingerprint>  seal into the vault + scrub the file (write scope)
+rootwatch keys local                scan this machine — no login, nothing uploaded
 rootwatch doctor                    self-check; exits 1 on failure
 ```
 
@@ -70,6 +77,16 @@ runs entirely offline — no login required and nothing leaves the machine.
 Findings land under a `projects`/`findings` entity in the dashboard and are
 readable via `GET /api/v1/projects/:slug/findings` and the MCP
 `list_projects` / `get_project_findings` tools.
+
+## Host credential posture
+
+`rootwatch keys` works the host credential inventory (`/api/v1/keys*`):
+fingerprints + last4 + redacted `~/…` locations — secret values never
+leave the machine. Probes are opt-in liveness checks against the provider
+(stripe balance, github scopes/expiry, openrouter credits, openai/
+anthropic liveness, honest `unknown` elsewhere); `contain` seals the value
+into the instance's AES-256-GCM vault and stubs it out of source files.
+`keys local` runs the same scanner entirely offline.
 
 ## CI usage
 

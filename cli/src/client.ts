@@ -18,10 +18,7 @@ export class CliError extends Error {
   /** process exit code: 1 = API/threshold failure, 2 = usage error */
   readonly exitCode: number;
 
-  constructor(
-    message: string,
-    opts: { code?: string; status?: number; exitCode?: number } = {},
-  ) {
+  constructor(message: string, opts: { code?: string; status?: number; exitCode?: number } = {}) {
     super(message);
     this.name = "CliError";
     this.code = opts.code ?? "error";
@@ -42,10 +39,8 @@ interface RequestOptions {
 }
 
 function mapHttpError(status: number, parsed: any, baseUrl: string): CliError {
-  const serverMsg =
-    parsed?.error?.message ?? parsed?.message ?? parsed?.error ?? undefined;
-  const serverCode =
-    typeof parsed?.error?.code === "string" ? parsed.error.code : undefined;
+  const serverMsg = parsed?.error?.message ?? parsed?.message ?? parsed?.error ?? undefined;
+  const serverCode = typeof parsed?.error?.code === "string" ? parsed.error.code : undefined;
 
   switch (status) {
     case 401:
@@ -54,25 +49,25 @@ function mapHttpError(status: number, parsed: any, baseUrl: string): CliError {
         { code: serverCode ?? "unauthorized", status },
       );
     case 403:
-      return new CliError(
-        `forbidden: ${serverMsg ?? "your API token lacks the required scope"}`,
-        { code: serverCode ?? "forbidden", status },
-      );
+      return new CliError(`forbidden: ${serverMsg ?? "your API token lacks the required scope"}`, {
+        code: serverCode ?? "forbidden",
+        status,
+      });
     case 404:
       return new CliError(
         `not found: ${serverMsg ?? "the endpoint does not exist on this server"} (${baseUrl})`,
         { code: serverCode ?? "not_found", status },
       );
     case 429:
-      return new CliError(
-        `rate limited: ${serverMsg ?? "too many requests — try again shortly"}`,
-        { code: serverCode ?? "rate_limited", status },
-      );
+      return new CliError(`rate limited: ${serverMsg ?? "too many requests — try again shortly"}`, {
+        code: serverCode ?? "rate_limited",
+        status,
+      });
     default:
-      return new CliError(
-        serverMsg ? String(serverMsg) : `request failed with HTTP ${status}`,
-        { code: serverCode ?? `http_${status}`, status },
-      );
+      return new CliError(serverMsg ? String(serverMsg) : `request failed with HTTP ${status}`, {
+        code: serverCode ?? `http_${status}`,
+        status,
+      });
   }
 }
 
@@ -113,14 +108,13 @@ export class ApiClient {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const cause = (e as { cause?: { message?: string } }).cause?.message;
-      throw new CliError(
-        `cannot reach ${this.baseUrl}${cause ? ` — ${cause}` : ` — ${msg}`}`,
-        { code: "network" },
-      );
+      throw new CliError(`cannot reach ${this.baseUrl}${cause ? ` — ${cause}` : ` — ${msg}`}`, {
+        code: "network",
+      });
     }
 
     const text = await res.text();
-    let parsed: any = null;
+    let parsed: any;
     try {
       parsed = text ? JSON.parse(text) : null;
     } catch {
@@ -146,11 +140,7 @@ export class ApiClient {
   }
 
   /** Arbitrary path on the same host (session API, health endpoints…). */
-  raw<T = unknown>(
-    method: string,
-    path: string,
-    opts: RequestOptions = {},
-  ): Promise<ApiResult<T>> {
+  raw<T = unknown>(method: string, path: string, opts: RequestOptions = {}): Promise<ApiResult<T>> {
     return this.request<T>(method, path, opts);
   }
 

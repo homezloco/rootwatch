@@ -133,6 +133,12 @@ export const TOOLS: Tool[] = [
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
+    name: "run_malware_scan",
+    description:
+      "Run the host malware pass now: deleted-binary processes, LD_PRELOAD injection, suspicious cron entries, unowned setuid binaries, package-integrity drift, staging-dir executables, plus a ClamAV signature sweep when installed. Findings persist as host vulnerabilities and edge-triggered malware_indicator events. Requires 'scan' scope.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
     name: "get_system_status",
     description: "Stored system-status rows for the monitored host (component health cards).",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
@@ -293,15 +299,81 @@ export const TOOLS: Tool[] = [
   {
     name: "queue_device_command",
     description:
-      "Queue a remote action a device picks up on its next report: 'refresh' or 'stop-listener' (payload.pid integer > 1). Requires 'admin' scope.",
+      "Queue a remote action a device picks up on its next report: 'refresh', 'stop-listener' (payload.pid integer > 1), 'malware-scan', 'keys-contain'/'keys-probe' (payload.fingerprint = 64-char sha256), 'keys-probe-all' (optional payload.provider). Requires 'admin' scope.",
     inputSchema: {
       type: "object",
       properties: {
         deviceId: { type: "number", description: "Device id (see list_devices)" },
-        type: { type: "string", description: "refresh | stop-listener" },
-        payload: { type: "object", description: "stop-listener requires {pid: integer > 1}" },
+        type: {
+          type: "string",
+          description:
+            "refresh | stop-listener | malware-scan | keys-contain | keys-probe | keys-probe-all",
+        },
+        payload: {
+          type: "object",
+          description:
+            "stop-listener requires {pid: integer > 1}; keys-contain/keys-probe require {fingerprint: 64-char sha256}; keys-probe-all takes optional {provider}",
+        },
       },
       required: ["deviceId", "type"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "list_api_keys",
+    description:
+      "Fingerprinted inventory of API keys/credentials found on the host: provider, label, last4, redacted locations, posture flags, containment status. Values never returned. Requires 'read' scope.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        provider: { type: "string", description: "Filter by provider (e.g. github, aws, stripe)" },
+        status: { type: "string", description: "Filter by status: open|contained|rotated|ignored" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "scan_api_keys",
+    description:
+      "Re-scan the host for exposed credentials now, bypassing the cache. Requires 'scan' scope.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "probe_api_key",
+    description:
+      "Validate a discovered credential against its provider API. Returns liveness/scope/balance metadata — never the key. Requires 'write' scope.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fingerprint: { type: "string", description: "sha256 fingerprint from list_api_keys" },
+      },
+      required: ["fingerprint"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "probe_api_keys",
+    description:
+      "Bulk liveness check — probe every adapter-covered open credential against its provider. Non-bearer credentials and adapterless providers are reported as skipped, not probed. Requires 'write' scope.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        provider: { type: "string", description: "Probe only this provider (e.g. stripe)" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "contain_api_key",
+    description:
+      "Seal a credential into the local encrypted vault and remove it from its plaintext file (copy:true leaves the file). Requires 'write' scope.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fingerprint: { type: "string", description: "sha256 fingerprint from list_api_keys" },
+        copy: { type: "boolean", description: "Seal into vault but leave the file untouched" },
+      },
+      required: ["fingerprint"],
       additionalProperties: false,
     },
   },
@@ -397,6 +469,8 @@ export async function runMcpServer(profileFlag?: string): Promise<void> {
         }
         case "run_security_checks":
           return jsonResult(await client.post("/scans/security-checks", {}));
+        case "run_malware_scan":
+          return jsonResult(await client.post("/scans/malware", {}));
         case "get_system_status": {
           // Read the same stored statuses as the direct MCP tool, without live-collector side effects.
           return jsonResult(await client.get("/system-status"));
@@ -496,6 +570,55 @@ export async function runMcpServer(profileFlag?: string): Promise<void> {
           const body: Record<string, unknown> = { type: args.type };
           if (args.payload && typeof args.payload === "object") body.payload = args.payload;
           return jsonResult(await client.post(`/devices/${deviceId}/commands`, body));
+        }
+        case "list_api_keys": {
+          // Pass provider/status as query params (server may filter); also
+          // filter client-side since older servers may ignore them.
+          const res = await client.get("/keys", pickQuery(args, ["provider", "status"]));
+          const data = res.data as {
+            keys?: { provider?: string | null; status?: string }[];
+            count?: number;
+          } | null;
+          if (data && Array.isArray(data.keys)) {
+            const provider = typeof args.provider === "string" ? args.provider : undefined;
+            const status = typeof args.status === "string" ? args.status : undefined;
+            if (provider !== undefined || status !== undefined) {
+              data.keys = data.keys.filter(
+                (k) =>
+                  (provider === undefined || k.provider === provider) &&
+                  (status === undefined || k.status === status),
+              );
+              if (typeof data.count === "number") data.count = data.keys.length;
+            }
+          }
+          return jsonResult(res);
+        }
+        case "scan_api_keys":
+          return jsonResult(await client.post("/keys/scan", {}));
+        case "probe_api_key": {
+          const fp = String(args.fingerprint ?? "");
+          if (!/^[0-9a-f]{64}$/.test(fp)) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              "'fingerprint' must be a 64-char sha256 hex",
+            );
+          }
+          return jsonResult(await client.post(`/keys/${fp}/probe`, {}));
+        }
+        case "probe_api_keys": {
+          const body: Record<string, unknown> = {};
+          if (typeof args.provider === "string") body.provider = args.provider;
+          return jsonResult(await client.post("/keys/probe-all", body));
+        }
+        case "contain_api_key": {
+          const fp = String(args.fingerprint ?? "");
+          if (!/^[0-9a-f]{64}$/.test(fp)) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              "'fingerprint' must be a 64-char sha256 hex",
+            );
+          }
+          return jsonResult(await client.post(`/keys/${fp}/contain`, { copy: args.copy === true }));
         }
         default:
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);

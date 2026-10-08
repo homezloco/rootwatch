@@ -125,14 +125,63 @@ async function runLocalScan(
   if (postError) throw postError;
 }
 
+const REMOTE_TYPES = ["checks", "malware"] as const;
+type RemoteType = (typeof REMOTE_TYPES)[number];
+
 async function runRemoteScan(
-  opts: { failOn?: string },
+  opts: { failOn?: string; type?: string },
   globals: GlobalOpts,
   cmd: Command,
 ): Promise<void> {
   const failOn = checkThreshold(failOnOption(opts, cmd));
+  const type = (opts.type ?? "checks") as RemoteType;
+  if (!REMOTE_TYPES.includes(type)) {
+    throw new CliError(`--type must be one of: ${REMOTE_TYPES.join(", ")} (got '${type}')`, {
+      code: "usage",
+      exitCode: 2,
+    });
+  }
   const { client } = requireAuth(globals);
-  const { data } = await client.post("/scans/security-checks", {});
+  const { data } = await client.post(
+    type === "malware" ? "/scans/malware" : "/scans/security-checks",
+    {},
+  );
+
+  if (type === "malware") {
+    if (globals.json) {
+      printJson(data);
+    } else {
+      const d = data as Record<string, any>;
+      const findings = Array.isArray(d?.findings) ? d.findings : [];
+      console.log(
+        `malware scan (${d?.scanner ?? "heuristics"}): ` +
+          `${findings.length === 0 ? chalk.green("no findings") : chalk.red(`${findings.length} finding(s)`)}` +
+          (d?.filesScanned != null ? `, ${d.filesScanned} files signature-scanned` : "") +
+          (d?.clamavAvailable === false ? chalk.dim(" — clamav not installed") : ""),
+      );
+      if (findings.length) {
+        printTable(
+          ["Severity", "Finding", "Evidence"],
+          findings.map((f: any) => [
+            severityLabel(f.severity),
+            f.name ?? f.id ?? "-",
+            truncate(f.evidence, 70),
+          ]),
+        );
+      }
+    }
+    if (failOn) {
+      const findings = Array.isArray((data as any)?.findings)
+        ? ((data as any).findings as { severity?: string }[])
+        : [];
+      if (findings.some((f) => severityAtLeast(f.severity ?? "", failOn))) {
+        throw new CliError(`malware scan has findings ≥ '${failOn}' severity`, {
+          code: "threshold_exceeded",
+        });
+      }
+    }
+    return;
+  }
 
   if (globals.json) {
     printJson(data);
@@ -203,9 +252,10 @@ export function registerScan(program: Command): void {
 
   scan
     .command("remote")
-    .description("Run the server-side security check engine (scan scope)")
-    .option("--fail-on <severity>", "exit 1 when failed checks ≥ severity")
-    .action(async (opts: { failOn?: string }, cmd: Command) => {
+    .description("Run the server-side scan engines (scan scope)")
+    .option("--type <kind>", "checks (default) | malware")
+    .option("--fail-on <severity>", "exit 1 when failed checks/findings ≥ severity")
+    .action(async (opts: { failOn?: string; type?: string }, cmd: Command) => {
       await runRemoteScan(opts, cmd.optsWithGlobals() as GlobalOpts, cmd);
     });
 }

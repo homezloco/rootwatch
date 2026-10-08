@@ -28,7 +28,6 @@ const execFileP = promisify(execFile);
 
 const HTTP_PROBE_TIMEOUT_MS = 300;
 const KILL_GRACE_MS = 3000;
-const ABANDONED_SECONDS = 7 * 24 * 60 * 60;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -184,6 +183,9 @@ const DATABASE_PORTS = new Set([
 const PORT_NAMES = {
   22: "ssh",
   25: "smtp",
+  500: "ipsec ike",
+  1194: "openvpn",
+  4500: "ipsec nat-t",
   53: "dns",
   80: "http",
   443: "https",
@@ -199,6 +201,8 @@ const PORT_NAMES = {
   11211: "memcached",
   2375: "docker api",
   5353: "mdns",
+  41641: "tailscale wireguard",
+  51820: "wireguard",
 };
 
 const CONTAINER_RE = /docker-proxy|containerd-shim|com\.docker|podman/i;
@@ -1029,8 +1033,35 @@ async function buildReport() {
     passed: checkResults.filter((c) => c.passed).length,
     failing: checkResults
       .filter((c) => !c.passed)
-      .map((c) => ({ id: c.id, name: c.name, severity: c.severity })),
+      .map((c) => ({ id: c.id, name: c.name, severity: c.severity, detail: c.detail ?? null })),
+    // Names of the checks that passed — lets the dashboard show what is/isn't
+    // passing rather than a bare count. Absent on agents before this field.
+    passing: checkResults.filter((c) => c.passed).map((c) => ({ id: c.id, name: c.name })),
   };
+
+  // Credential posture — keys.cjs emits fingerprints + "~/…" paths only,
+  // never a secret value. A scanner failure degrades to an honest error
+  // section like every other degradable part of this report.
+  let keys;
+  try {
+    const keysMod = require("./keys.cjs");
+    const records = await keysMod.listKeys();
+    keys = {
+      total: records.length,
+      exposed: records.filter(
+        (r) =>
+          r.flags?.committed === true ||
+          r.flags?.served != null ||
+          r.flags?.worldReadable === true ||
+          r.flags?.leakedToHistory === true,
+      ).length,
+      items: keysMod.reportItems(records),
+    };
+    const scanErr = keysMod.lastScanError?.();
+    if (scanErr) keys.error = scanErr;
+  } catch (error) {
+    keys = { total: 0, exposed: 0, items: [], error: error?.message ?? "key scan unavailable" };
+  }
 
   const root = (fs ?? []).find((f) => f.mount === "/") ?? (fs ?? [])[0];
   return {
@@ -1041,6 +1072,7 @@ async function buildReport() {
       diskPercent: root ? Math.round(root.use * 10) / 10 : null,
     },
     checks,
+    keys,
     firewall: {
       supported: fw.supported === true,
       // null = backend present but state unreadable — report unknown, not

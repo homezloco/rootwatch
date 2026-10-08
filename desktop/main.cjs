@@ -66,6 +66,7 @@ let pollBaselineSet = false;
 let lastScore = null;
 let driftTimer = null;
 let listenerBaseline = null; // Set<'pid:port:proto'> — null until first pass seeds it
+let knownListenerNames = null; // Set<string> — exe names seen listening before this tick
 
 // ---------------------------------------------------------------------------
 // Connection config — token is encrypted at rest via the OS keychain
@@ -337,15 +338,49 @@ async function listenerDrift() {
     listenerBaseline = new Set(current.keys());
     return;
   }
+
+  // Names that have ever listened on this box — seeded once from sighting
+  // history so a reinstall doesn't re-alert every existing process.
+  if (knownListenerNames === null) {
+    try {
+      knownListenerNames = new Set(
+        (await db.getListenerHistory()).map((r) => r.name).filter(Boolean),
+      );
+    } catch {
+      knownListenerNames = new Set();
+    }
+  }
+
   const fresh = [...current.keys()].filter((k) => !listenerBaseline.has(k));
   listenerBaseline = new Set(current.keys());
   if (!fresh.length) return;
+
+  // Ephemeral loopback binds from known processes are background noise on a
+  // dev machine (browsers, language servers re-bind constantly). Only a
+  // non-loopback bind, a high/critical-risk listener, or an exe name we've
+  // never seen listening earns a notification.
+  const notable = fresh.filter((key) => {
+    const { listener: l, port: p } = current.get(key);
+    if (l.risk === "critical" || l.risk === "high") return true;
+    if (p.scope !== "loopback") return true;
+    return l.name == null || !knownListenerNames.has(l.name);
+  });
+  for (const l of items) {
+    if (l.name) knownListenerNames.add(l.name);
+  }
+  if (!notable.length) {
+    log(`drift: ${fresh.length} new bind(s), none notable`);
+    return;
+  }
+  if (notable.length < fresh.length) {
+    log(`drift: ${fresh.length} new bind(s), ${notable.length} notable`);
+  }
 
   // One notification per process (a listener can open several fresh ports);
   // capped at 3 so a burst doesn't firehose the user.
   const seen = new Set();
   let notified = 0;
-  for (const key of fresh) {
+  for (const key of notable) {
     if (notified >= 3) break;
     const { listener: l, port: p } = current.get(key);
     const group = l.key ?? String(l.pid);
@@ -376,9 +411,15 @@ function showWindow() {
       log(`window offscreen (${wb.x},${wb.y} ${wb.width}x${wb.height}) — recentering`);
       mainWindow.center();
     }
+    // GNOME Wayland drops show()/focus() raises from tray clicks — a
+    // window mapped on another workspace never comes forward. Mark it
+    // visible-on-all-workspaces so it lands on the current one, then
+    // restore normal workspace binding after it's shown.
+    mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     mainWindow.show();
     mainWindow.moveTop();
     mainWindow.focus();
+    mainWindow.setVisibleOnAllWorkspaces(false);
   } else {
     createWindow();
   }
@@ -592,6 +633,87 @@ ipcMain.handle("rw:device:history", async (event) => {
 ipcMain.handle("rw:device:queue", async (event) => {
   bundledOnly(event);
   return { queued: await device.queueSize() };
+});
+
+// Credential posture — keys.cjs returns fingerprinted records only (sha256
+// fp + last4 + "~/…" paths); secret values never cross this bridge. The
+// vault list rides along for "contained" marking — metadata only.
+ipcMain.handle("rw:device:keys", async (event, { force } = {}) => {
+  bundledOnly(event);
+  let keys;
+  try {
+    keys = require("./keys.cjs");
+  } catch {
+    return { ok: false, error: "key scanner unavailable" };
+  }
+  try {
+    return {
+      ok: true,
+      items: await keys.listKeys({ force: force === true }),
+      vault: await keys.vaultList(),
+    };
+  } catch (error) {
+    return { ok: false, error: error?.message ?? "key scan unavailable" };
+  }
+});
+
+const KEY_FP_RE = /^[0-9a-f]{64}$/;
+
+ipcMain.handle("rw:device:keys:contain", async (event, { fingerprint, copy } = {}) => {
+  bundledOnly(event);
+  if (typeof fingerprint !== "string" || !KEY_FP_RE.test(fingerprint)) {
+    return { status: "failed", message: "invalid fingerprint" };
+  }
+  try {
+    return await require("./keys.cjs").containKey(fingerprint, { copy: copy === true });
+  } catch (error) {
+    return { status: "failed", message: error?.message ?? "contain failed" };
+  }
+});
+
+ipcMain.handle("rw:device:keys:probe", async (event, { fingerprint } = {}) => {
+  bundledOnly(event);
+  if (typeof fingerprint !== "string" || !KEY_FP_RE.test(fingerprint)) {
+    return { status: "failed", message: "invalid fingerprint" };
+  }
+  try {
+    return await require("./keys.cjs").probeKey(fingerprint);
+  } catch (error) {
+    return { status: "failed", message: error?.message ?? "probe failed" };
+  }
+});
+
+ipcMain.handle("rw:device:keys:probe-all", async (event, { provider } = {}) => {
+  bundledOnly(event);
+  try {
+    return await require("./keys.cjs").probeAll(typeof provider === "string" ? { provider } : {});
+  } catch (error) {
+    return { probed: 0, live: 0, dead: 0, unknown: 0, error: error?.message ?? "probe-all failed" };
+  }
+});
+
+// Malware posture — the cached summary the reporter maintains (a stale cache
+// gets a background refresh; the renderer never blocks on a full pass).
+ipcMain.handle("rw:device:malware", async (event) => {
+  bundledOnly(event);
+  try {
+    const malware = require("./malware.cjs");
+    malware.refreshInBackground();
+    return { ok: true, summary: malware.getCachedSummary() };
+  } catch (error) {
+    return { ok: false, error: error?.message ?? "malware scanner unavailable" };
+  }
+});
+
+// Forced full pass — can take a minute+ when ClamAV is installed; the UI
+// shows a busy state while the invoke resolves.
+ipcMain.handle("rw:device:malware:scan", async (event) => {
+  bundledOnly(event);
+  try {
+    return { ok: true, summary: await require("./malware.cjs").scanNow() };
+  } catch (error) {
+    return { ok: false, error: error?.message ?? "malware scan failed" };
+  }
 });
 
 // Local repo scan — scan.cjs is an optional bundled module; a broken/missing

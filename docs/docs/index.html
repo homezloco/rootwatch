@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Documentation — RootWatch</title>
+    <meta
+      name="description"
+      content="RootWatch documentation index: quickstart, CLI, MCP server, REST API, fleet agent, desktop app, and llms.txt."
+    />
+    <link rel="canonical" href="https://rootwatch.dev/docs/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="RootWatch" />
+    <meta property="og:title" content="Documentation — RootWatch" />
+    <meta
+      property="og:description"
+      content="RootWatch documentation index: quickstart, CLI, MCP server, REST API, fleet agent, desktop app, and llms.txt."
+    />
+    <meta property="og:url" content="https://rootwatch.dev/docs/" />
+    <meta property="og:image" content="https://rootwatch.dev/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Documentation — RootWatch" />
+    <meta
+      name="twitter:description"
+      content="RootWatch documentation index: quickstart, CLI, MCP server, REST API, fleet agent, desktop app, and llms.txt."
+    />
+    <meta name="twitter:image" content="https://rootwatch.dev/og.png" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>"
+    />
+    <style>
+      :root {
+        --bg: #09090b;
+        --panel: #101013;
+        --border: #27272a;
+        --text: #e4e4e7;
+        --dim: #a1a1aa;
+        --faint: #71717a;
+        --accent: #3b82f6;
+        --green: #34d399;
+        --amber: #fbbf24;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Inter,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      header {
+        border-bottom: 1px solid var(--border);
+        padding: 20px 0;
+        position: sticky;
+        top: 0;
+        background: rgba(9, 9, 11, 0.85);
+        backdrop-filter: blur(8px);
+        z-index: 10;
+      }
+      header .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .logo {
+        font: 700 18px var(--mono);
+        letter-spacing: 0.12em;
+        color: var(--text);
+        text-decoration: none;
+      }
+      .logo span {
+        color: var(--accent);
+      }
+      nav a {
+        color: var(--dim);
+        text-decoration: none;
+        margin-left: 24px;
+        font-size: 14px;
+      }
+      nav a:hover {
+        color: var(--text);
+      }
+      .btn {
+        display: inline-block;
+        padding: 10px 20px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+        border: 1px solid transparent;
+      }
+      .btn:hover {
+        background: #2563eb;
+      }
+      .btn.ghost {
+        background: transparent;
+        border-color: var(--border);
+        color: var(--text);
+      }
+      .btn.ghost:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .pagehead {
+        padding: 72px 0 8px;
+      }
+      .pagehead h1 {
+        font-size: clamp(32px, 5.5vw, 48px);
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+        font-weight: 700;
+      }
+      .pagehead h1 em {
+        font-style: normal;
+        color: var(--accent);
+      }
+      .pagehead .sub {
+        margin-bottom: 0;
+        font-size: 17px;
+      }
+      section {
+        padding: 48px 0;
+      }
+      h2 {
+        font-size: 26px;
+        letter-spacing: -0.01em;
+        margin-bottom: 8px;
+      }
+      .sub {
+        color: var(--dim);
+        margin-bottom: 32px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+      }
+      .card h3 {
+        font-size: 16px;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .card h3 .n {
+        font: 600 11px var(--mono);
+        color: var(--accent);
+        border: 1px solid rgba(59, 130, 246, 0.4);
+        border-radius: 6px;
+        padding: 2px 7px;
+      }
+      .card p {
+        color: var(--dim);
+        font-size: 14px;
+        margin-bottom: 14px;
+      }
+      .card a.doclink {
+        color: var(--accent);
+        font-size: 14px;
+        text-decoration: none;
+      }
+      .card a.doclink:hover {
+        text-decoration: underline;
+      }
+      pre.code {
+        background: #0c0c0f;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 16px;
+        font: 12.5px/1.75 var(--mono);
+        overflow-x: auto;
+        color: var(--dim);
+      }
+      pre.code .k {
+        color: var(--green);
+      }
+      pre.code .s {
+        color: var(--amber);
+      }
+      pre.code .c {
+        color: var(--faint);
+      }
+      pre.code .g {
+        color: var(--green);
+      }
+      pre.code .w {
+        color: var(--text);
+      }
+      .pill {
+        display: inline-block;
+        font: 500 11px var(--mono);
+        color: var(--faint);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 2px 8px;
+        margin-top: 10px;
+      }
+      article p,
+      article li {
+        color: var(--dim);
+        font-size: 15px;
+      }
+      article p {
+        margin-bottom: 12px;
+      }
+      article a {
+        color: var(--accent);
+      }
+      code {
+        font: 12.5px var(--mono);
+        color: var(--green);
+        background: #0c0c0f;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 2px 6px;
+      }
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 32px 0 48px;
+        color: var(--faint);
+        font-size: 13px;
+      }
+      footer .wrap {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      footer a {
+        color: var(--dim);
+        text-decoration: none;
+        margin-left: 16px;
+      }
+      footer a:hover {
+        color: var(--text);
+      }
+      @media (max-width: 640px) {
+        nav a {
+          margin-left: 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <a class="logo" href="/">ROOT<span>WATCH</span></a>
+        <nav>
+          <a href="/#start">Quickstart</a>
+          <a href="/pricing/">Pricing</a>
+          <a href="/docs/">Docs</a>
+          <a href="/status/">Status</a>
+          <a href="/contact/">Contact</a>
+          <a class="btn" href="https://app.rootwatch.dev">Dashboard</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="pagehead wrap">
+      <h1>Documentation</h1>
+      <p class="sub">
+        The map, not the manual — every client authenticates with the same org-scoped
+        <code>rw_…</code> token against the same data. Deep references live in the source repo.
+      </p>
+    </div>
+
+    <section class="wrap">
+      <h2>Get started</h2>
+      <p class="sub">Sixty seconds from zero to your first scan.</p>
+      <div class="grid">
+        <div class="card">
+          <h3><span class="n">1</span> Quickstart</h3>
+          <p>
+            Create an account, mint an API token, connect a client. The landing page walks it step
+            by step.
+          </p>
+          <a class="doclink" href="/#start">Quickstart on the home page →</a>
+        </div>
+        <div class="card">
+          <h3><span class="n">2</span> Dashboard</h3>
+          <p>
+            The hosted control plane: orgs, members, API tokens, scans, findings, reports.
+            Registration auto-creates your organization.
+          </p>
+          <a class="doclink" href="https://app.rootwatch.dev">app.rootwatch.dev →</a>
+        </div>
+        <div class="card">
+          <h3><span class="n">3</span> Pricing &amp; limits</h3>
+          <p>
+            What each plan gates — seats, active API tokens, and hosted AI — and where to upgrade.
+          </p>
+          <a class="doclink" href="/pricing/">Pricing →</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap">
+      <h2>Clients &amp; agents</h2>
+      <p class="sub">One trust boundary — the server. Four ways in.</p>
+      <div class="grid">
+        <div class="card">
+          <h3><span class="n">CLI</span> rootwatch / rw</h3>
+          <p>
+            Terminal control panel, local project scanner, and CI gate. Talks to any instance over
+            <code>/api/v1</code> with a Bearer token — or stays fully local with
+            <code>--no-upload</code>.
+          </p>
+          <pre class="code"><span class="k">npm</span> i -g @rootwatch/cli
+<span class="k">rootwatch</span> login --server <span class="s">https://app.rootwatch.dev</span> --token <span class="s">rw_…</span>
+<span class="k">rootwatch</span> doctor <span class="c"># connectivity + scope self-check</span></pre>
+          <a class="doclink" href="https://www.npmjs.com/package/@rootwatch/cli">npm package →</a>
+          <span class="pill">full reference: cli/README.md in the source repo</span>
+        </div>
+        <div class="card">
+          <h3><span class="n">MCP</span> For AI agents</h3>
+          <p>
+            Streamable HTTP MCP server at <code>/mcp</code> — posture, scans, listeners, credential
+            inventory, remediation proposals. Or run the stdio bridge for desktop MCP clients.
+          </p>
+          <pre class="code">{
+  <span class="s">"mcpServers"</span>: {
+    <span class="s">"rootwatch"</span>: {
+      <span class="s">"url"</span>: <span class="s">"https://app.rootwatch.dev/mcp"</span>,
+      <span class="s">"headers"</span>: { <span class="s">"Authorization"</span>: <span class="s">"Bearer rw_…"</span> }
+    }
+  }
+}</pre>
+          <a class="doclink" href="/#mcp">MCP setup on the home page →</a>
+          <span class="pill">stdio bridge: rootwatch mcp</span>
+        </div>
+        <div class="card">
+          <h3><span class="n">API</span> REST /api/v1</h3>
+          <p>
+            Org-scoped Bearer-token API for scripts and integrations: score, hosts, scans,
+            vulnerabilities, events, reports, downloads. Scopes:
+            <code>read</code> · <code>scan</code> · <code>write</code> · <code>admin</code>.
+          </p>
+          <pre
+            class="code"
+          ><span class="k">curl</span> -H <span class="s">"Authorization: Bearer rw_…"</span> \
+     https://app.rootwatch.dev/api/v1/score</pre>
+          <a class="doclink" href="/#api">API overview on the home page →</a>
+        </div>
+        <div class="card">
+          <h3><span class="n">AGENT</span> Fleet agent</h3>
+          <p>
+            Zero-dependency Node 18+ posture reporter — outbound HTTPS only, no inbound listeners,
+            pairs by enrollment code or <code>rw_…</code> token.
+          </p>
+          <pre
+            class="code"
+          ><span class="k">curl</span> -fsSL <span class="s">https://rootwatch.dev/agent/install.sh</span> \
+  | <span class="k">sudo bash</span> -s -- &lt;control-url&gt; [credential]</pre>
+          <a class="doclink" href="/agent/README.md">Agent README →</a>
+          <span class="pill">install-termux.sh for Android</span>
+        </div>
+        <div class="card">
+          <h3><span class="n">APP</span> Desktop</h3>
+          <p>
+            Electron thin client for Linux — AppImage, deb, snap — plus a local "This device" sensor
+            that reports posture to your instance.
+          </p>
+          <a class="doclink" href="https://github.com/homezloco/rootwatch-releases/releases"
+            >Release binaries →</a
+          >
+          <span class="pill">AppImage auto-updates; deb/snap via store or manual</span>
+        </div>
+        <div class="card">
+          <h3><span class="n">LLM</span> llms.txt</h3>
+          <p>
+            A machine-readable summary of the product, surfaces, and pricing — written for AI agents
+            and LLM tooling.
+          </p>
+          <a class="doclink" href="/llms.txt">rootwatch.dev/llms.txt →</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap">
+      <h2>Source</h2>
+      <article>
+        <p>
+          The agent, CLI, and desktop app are Apache-2.0; the control plane is closed-source. Client
+          source and per-component READMEs live in the
+          <a href="https://github.com/homezloco/rootwatch">source repository</a>
+          (<code>cli/README.md</code>, <code>desktop/README.md</code>,
+          <code>docs/agent/README.md</code>).
+        </p>
+        <p>
+          Something unclear or broken? Reach us via
+          <a href="/contact/">the contact page</a>.
+        </p>
+      </article>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        <span
+          >ROOTWATCH — a
+          <a href="https://www.canweb.net" style="margin-left: 0">Canadian Web Consulting</a>
+          service</span
+        >
+        <span>
+          <a href="/pricing/" style="margin-left: 0">Pricing</a>
+          <a href="/docs/">Docs</a>
+          <a href="/status/">Status</a>
+          <a href="/contact/">Contact</a>
+          <a href="/privacy/">Privacy</a>
+          <a href="/terms/">Terms</a>
+          <a href="https://app.rootwatch.dev">Dashboard</a>
+          <a href="https://www.canweb.net">canweb.net</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

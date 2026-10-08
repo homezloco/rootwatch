@@ -11,7 +11,7 @@ import type { Command } from "commander";
 import chalk from "chalk";
 import { createInterface } from "node:readline/promises";
 import { CliError, requireAuth, type ApiClient, type GlobalOpts } from "../client.js";
-import { error, info, printJson, printTable, severityLabel, success } from "../output.js";
+import { info, printJson, printTable, severityLabel, success } from "../output.js";
 import { asList, formatUptime, truncate } from "../util.js";
 
 // Mirrors server/services/listeners.ts — the CLI is a standalone package
